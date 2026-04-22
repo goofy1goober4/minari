@@ -1,0 +1,27 @@
+{
+  "name": "minari",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The grown-up's plushie. Except this one notices you back.",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "node node_modules/@electron/rebuild/lib/cli.js -f -w better-sqlite3"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.0",
+    "electron": "^33.2.0",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.7.0",
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.6.0",
+    "pixi.js": "^8.6.0"
+  }
+}
