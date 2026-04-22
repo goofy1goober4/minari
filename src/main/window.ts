@@ -24,6 +24,10 @@ export function createPetWindow(): BrowserWindow {
     },
   });
 
+  // Default: all clicks pass through. Renderer toggles this off when cursor
+  // enters a hit region (sprout / bubble) and back on when it leaves.
+  win.setIgnoreMouseEvents(true, { forward: true });
+
   const devUrl = process.env['ELECTRON_RENDERER_URL'];
   if (devUrl) {
     win.loadURL(devUrl);

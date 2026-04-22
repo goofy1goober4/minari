@@ -1,9 +1,11 @@
 import { app, BrowserWindow } from 'electron';
 import { createPetWindow } from './window';
 import { openDb, closeDb } from './memory/db';
+import { registerIpc } from './ipc';
 
 app.whenReady().then(() => {
   openDb();
+  registerIpc();
   createPetWindow();
 
   app.on('activate', () => {
