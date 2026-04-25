@@ -1,10 +1,13 @@
 import { Application } from 'pixi.js';
 import { Sprout } from './pet/Sprout';
 import { Bubble } from './ui/Bubble';
+import { runBirthScene } from './birth/runBirthScene';
 
 const SPROUT_HIT_HALF_W = 30;
 const SPROUT_HIT_TOP = -62;
 const SPROUT_HIT_BOTTOM = 14;
+
+type Mode = 'birth' | 'idle';
 
 async function boot() {
   const app = new Application();
@@ -30,6 +33,7 @@ async function boot() {
 
   let generating = false;
   let clickThrough = true;
+  let mode: Mode = 'idle';
 
   const hitTest = (x: number, y: number): boolean => {
     const sdx = x - sprout.x;
@@ -62,6 +66,7 @@ async function boot() {
   });
 
   window.addEventListener('pointerdown', async () => {
+    if (mode === 'birth') return;
     sprout.nudge();
 
     if (bubble.isVisible()) {
@@ -82,6 +87,7 @@ async function boot() {
   let lastX: number | null = null;
   let lastT = performance.now();
   window.addEventListener('pointermove', (e) => {
+    if (mode === 'birth') return;
     const now = performance.now();
     const dt = Math.max((now - lastT) / 1000, 1 / 240);
     const vx = lastX === null ? 0 : Math.max(-3000, Math.min(3000, (e.clientX - lastX) / dt));
@@ -92,9 +98,27 @@ async function boot() {
     setClickThroughIfChanged(!hitTest(e.clientX, e.clientY));
   });
   window.addEventListener('pointerleave', () => {
+    if (mode === 'birth') return;
     sprout.onPointerLeave();
     setClickThroughIfChanged(true);
   });
+
+  const birthState = await window.minari.getBirthState();
+  if (!birthState.completed) {
+    mode = 'birth';
+    try {
+      await runBirthScene({ app, sprout, bubble });
+    } catch (err) {
+      console.error('[boot] birth scene failed:', err);
+      sprout.setStemGrowth(1);
+      sprout.setLeafUnfold(1);
+    } finally {
+      mode = 'idle';
+      // Reset to pass-through; pointermove will re-enable when cursor enters hit region.
+      clickThrough = true;
+      window.minari.setClickThrough(true);
+    }
+  }
 }
 
 boot();

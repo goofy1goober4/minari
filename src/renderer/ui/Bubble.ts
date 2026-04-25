@@ -17,7 +17,7 @@ type Phase = 'hidden' | 'in' | 'hold' | 'out';
 
 export class Bubble extends Container {
   private bg: Graphics;
-  private label: Text;
+  private _label: Text;
   private phase: Phase = 'hidden';
   private phaseElapsed = 0;
   private holdDuration = 0;
@@ -28,7 +28,7 @@ export class Bubble extends Container {
     this.alpha = 0;
 
     this.bg = new Graphics();
-    this.label = new Text({
+    this._label = new Text({
       text: '',
       style: {
         fontFamily: 'system-ui, -apple-system, "Helvetica Neue", sans-serif',
@@ -37,15 +37,15 @@ export class Bubble extends Container {
         align: 'center',
       },
     });
-    this.addChild(this.bg, this.label);
+    this.addChild(this.bg, this._label);
   }
 
   show(text: string) {
-    this.label.text = text;
-    const w = Math.ceil(this.label.width) + PADDING_X * 2;
-    const h = Math.ceil(this.label.height) + PADDING_Y * 2;
-    this.label.x = PADDING_X;
-    this.label.y = PADDING_Y;
+    this._label.text = text;
+    const w = Math.ceil(this._label.width) + PADDING_X * 2;
+    const h = Math.ceil(this._label.height) + PADDING_Y * 2;
+    this._label.x = PADDING_X;
+    this._label.y = PADDING_Y;
 
     this.bg
       .clear()
@@ -97,7 +97,7 @@ export class Bubble extends Container {
       if (p >= 1) {
         this.phase = 'hidden';
         this.visible = false;
-        this.label.text = '';
+        this._label.text = '';
       }
     }
   }

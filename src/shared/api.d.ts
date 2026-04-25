@@ -3,6 +3,8 @@ declare global {
     minari: {
       speak(): Promise<string>;
       setClickThrough(passThrough: boolean): void;
+      getBirthState(): Promise<{ completed: boolean; nickname: string | null }>;
+      completeBirth(nickname: string): Promise<{ nickname: string; firstFragment: string }>;
     };
   }
 }
