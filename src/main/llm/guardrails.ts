@@ -14,9 +14,9 @@ const FORBIDDEN_WORDS = [
 ];
 
 const FALLBACK = '...';
-const MAX_LEN = 60;
+const DEFAULT_MAX_LEN = 60;
 
-export function filterGuardrails(raw: string): string {
+export function filterGuardrails(raw: string, maxLen: number = DEFAULT_MAX_LEN): string {
   let text = raw.trim();
 
   // Strip surrounding quotes if the model wrapped its answer.
@@ -35,7 +35,7 @@ export function filterGuardrails(raw: string): string {
   }
 
   // Hard length cap.
-  if (text.length > MAX_LEN) text = text.slice(0, MAX_LEN).trimEnd() + '…';
+  if (text.length > maxLen) text = text.slice(0, maxLen).trimEnd() + '…';
 
   if (!text) return FALLBACK;
   return text;

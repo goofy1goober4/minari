@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS state (
 CREATE TABLE IF NOT EXISTS diary (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   content TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  mood TEXT
 );
 
 CREATE TABLE IF NOT EXISTS soft_pings (
@@ -59,8 +60,17 @@ export function openDb(): Database.Database {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+  migrate(db);
   dbInstance = db;
   return db;
+}
+
+function migrate(db: Database.Database) {
+  // diary.mood was added later; ALTER existing tables.
+  const cols = db.prepare('PRAGMA table_info(diary)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'mood')) {
+    db.exec('ALTER TABLE diary ADD COLUMN mood TEXT');
+  }
 }
 
 export function closeDb() {

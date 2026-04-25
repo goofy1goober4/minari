@@ -1,4 +1,5 @@
 import { openDb } from './db';
+import type { Mood } from '../../shared/snapshot';
 
 export type Role = 'user' | 'minari';
 
@@ -40,4 +41,42 @@ export function setState(key: string, value: string) {
   db.prepare(
     'INSERT INTO state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
   ).run(key, value);
+}
+
+export function recordDiary(content: string, mood: Mood) {
+  const db = openDb();
+  db.prepare('INSERT INTO diary (content, mood, created_at) VALUES (?, ?, ?)').run(
+    content,
+    mood,
+    Date.now(),
+  );
+}
+
+export function getTodaysMessageCount(now = Date.now()): number {
+  const db = openDb();
+  const start = startOfLocalDay(now);
+  const row = db
+    .prepare('SELECT COUNT(*) as c FROM conversations WHERE created_at >= ?')
+    .get(start) as { c: number };
+  return row.c;
+}
+
+export function getTodaysHistory(now = Date.now(), limit = 20): Message[] {
+  const db = openDb();
+  const start = startOfLocalDay(now);
+  // Last `limit` of today, then re-sort ascending so the dialogue reads forward.
+  const rows = db
+    .prepare(
+      'SELECT role, content, created_at FROM conversations WHERE created_at >= ? ORDER BY id DESC LIMIT ?',
+    )
+    .all(start, limit) as { role: Role; content: string; created_at: number }[];
+  return rows
+    .reverse()
+    .map((r) => ({ role: r.role, content: r.content, createdAt: r.created_at }));
+}
+
+function startOfLocalDay(t: number): number {
+  const d = new Date(t);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
 }
