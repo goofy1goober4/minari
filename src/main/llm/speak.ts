@@ -1,7 +1,8 @@
 import { callOllama, type ChatMessage } from './ollama';
-import { SYSTEM_PROMPT, CLICK_TRIGGER } from './prompts';
+import { CLICK_TRIGGER, moodFlavoredSystemPrompt } from './prompts';
 import { filterGuardrails } from './guardrails';
 import { getRecentHistory, recordMessage } from '../memory/repo';
+import { getCurrentMood, noteSpoken } from '../snapshot';
 
 const MODEL = 'gemma4:e4b';
 const HISTORY_TURNS = 8;
@@ -14,7 +15,7 @@ export async function speakAsMinari(): Promise<string> {
 
   const raw = await callOllama({
     model: MODEL,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: moodFlavoredSystemPrompt(getCurrentMood()),
     history,
     userMessage: CLICK_TRIGGER,
   });
@@ -23,6 +24,7 @@ export async function speakAsMinari(): Promise<string> {
 
   recordMessage('user', CLICK_TRIGGER);
   recordMessage('minari', fragment);
+  noteSpoken(fragment);
 
   return fragment;
 }

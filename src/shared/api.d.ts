@@ -1,3 +1,5 @@
+import type { BootState } from './snapshot';
+
 declare global {
   interface Window {
     minari: {
@@ -5,6 +7,7 @@ declare global {
       setClickThrough(passThrough: boolean): void;
       getBirthState(): Promise<{ completed: boolean; nickname: string | null }>;
       completeBirth(nickname: string): Promise<{ nickname: string; firstFragment: string }>;
+      getBootState(): Promise<BootState>;
     };
   }
 }

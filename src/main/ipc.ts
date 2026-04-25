@@ -1,6 +1,9 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { speakAsMinari } from './llm/speak';
 import { BirthStateMachine } from './birth';
+import { computeBootState, setCurrent } from './snapshot';
+import { getState } from './memory/repo';
+import type { BootState } from '../shared/snapshot';
 
 export function registerIpc() {
   const birth = new BirthStateMachine();
@@ -25,6 +28,17 @@ export function registerIpc() {
       console.error('[minari:complete-birth] failed:', err);
       throw err;
     }
+  });
+
+  ipcMain.handle('minari:get-boot-state', (): BootState => {
+    const computed = computeBootState();
+    setCurrent(computed.activity, computed.mood);
+    const result: BootState = {
+      ...computed,
+      nickname: getState('nickname'),
+    };
+    console.log('[ipc] get-boot-state → ' + JSON.stringify(result));
+    return result;
   });
 
   ipcMain.on('minari:set-click-through', (event, passThrough: boolean) => {

@@ -1,4 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
+import { POSTURE_PRESETS, type PosturePreset } from './postures';
 
 const LEAVES_Y = -41;
 const LEAF_BAND_TOP = -58;
@@ -30,6 +31,8 @@ export class Sprout extends Container {
   private leafRight: Graphics;
   private t = 0;
   private nudgeT: number | null = null;
+  private noticeT: number | null = null;
+  private posture: PosturePreset = POSTURE_PRESETS.idle;
 
   // angle > 0 means leaf is pressed DOWN (tip drops).
   private leftAngle = 0;
@@ -89,6 +92,15 @@ export class Sprout extends Container {
     this.nudgeT = 0;
   }
 
+  // Single-tilt "noticed you" beat: leans out then returns over 0.6s.
+  notice() {
+    this.noticeT = 0;
+  }
+
+  setPosture(preset: PosturePreset) {
+    this.posture = preset;
+  }
+
   setStemGrowth(p: number) {
     this.stemProgress = Math.max(0, Math.min(1, p));
   }
@@ -130,10 +142,24 @@ export class Sprout extends Container {
     return amplitude * Math.exp(-damping * t) * Math.sin(omega * t);
   }
 
+  // Half-cycle sine: 0 → peak → 0 over `duration`. Single-direction tilt.
+  private noticeAngle(): number {
+    if (this.noticeT === null) return 0;
+    const t = this.noticeT;
+    const duration = 0.6;
+    if (t >= duration) {
+      this.noticeT = null;
+      return 0;
+    }
+    const amplitude = 0.12;
+    return amplitude * Math.sin((t / duration) * Math.PI);
+  }
+
   breathe(deltaMS: number) {
     const dt = Math.min(deltaMS / 1000, 0.05);
     this.t += dt;
     if (this.nudgeT !== null) this.nudgeT += dt;
+    if (this.noticeT !== null) this.noticeT += dt;
 
     const targetL = this.handOverLeft ? PRESS_DEPTH : 0;
     const targetR = this.handOverRight ? PRESS_DEPTH : 0;
@@ -155,7 +181,7 @@ export class Sprout extends Container {
       if (this.swayVel < 0) this.swayVel = 0;
     }
 
-    const phase = Math.sin((this.t / 5) * Math.PI * 2);
+    const phase = Math.sin((this.t / this.posture.breathPeriodSec) * Math.PI * 2);
     const stem = Math.max(0, Math.min(1, this.stemProgress));
     const leaf = this.leafProgress;
     const leafVisible = Math.max(0, Math.min(1, leaf));
@@ -166,7 +192,8 @@ export class Sprout extends Container {
     this.body.scale.x = 1 - phase * 0.015;
     this.body.alpha = stem;
     this.shadow.alpha = stem;
-    this.body.rotation = this.nudgeAngle() + this.swayAngle * 0.3;
+    this.body.rotation =
+      this.nudgeAngle() + this.noticeAngle() + this.swayAngle * 0.3 + this.posture.leanRad;
 
     this.leaves.rotation = this.swayAngle * 0.7 + phase * 0.05;
     this.leaves.alpha = leafVisible;
@@ -178,7 +205,10 @@ export class Sprout extends Container {
     // Pressed-down convention: +angle → tip drops.
     // Left leaf: tip-down requires negative rotation; right leaf: positive rotation.
     // Folded (foldFactor=1): leafLeft tip up → +FOLD_ANGLE; mirror for leafRight.
-    this.leafLeft.rotation = -this.leftAngle + FOLD_ANGLE * foldFactor;
-    this.leafRight.rotation = this.rightAngle - FOLD_ANGLE * foldFactor;
+    // Posture leaf bases use the same per-leaf sign convention as press-down.
+    this.leafLeft.rotation =
+      -this.leftAngle + FOLD_ANGLE * foldFactor + this.posture.leafBaseLeft;
+    this.leafRight.rotation =
+      this.rightAngle - FOLD_ANGLE * foldFactor + this.posture.leafBaseRight;
   }
 }

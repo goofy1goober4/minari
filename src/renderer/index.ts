@@ -2,6 +2,7 @@ import { Application } from 'pixi.js';
 import { Sprout } from './pet/Sprout';
 import { Bubble } from './ui/Bubble';
 import { runBirthScene } from './birth/runBirthScene';
+import { runResumeScene } from './resume/runResumeScene';
 
 const SPROUT_HIT_HALF_W = 30;
 const SPROUT_HIT_TOP = -62;
@@ -60,6 +61,18 @@ async function boot() {
     }
   };
 
+  // Shared speak path used by both click and the resume notice beat.
+  const speakAndShow = async () => {
+    if (generating || bubble.isVisible()) return;
+    generating = true;
+    try {
+      const fragment = await window.minari.speak();
+      bubble.show(fragment);
+    } finally {
+      generating = false;
+    }
+  };
+
   app.ticker.add((ticker) => {
     sprout.breathe(ticker.deltaMS);
     bubble.update(ticker.deltaMS);
@@ -73,15 +86,7 @@ async function boot() {
       bubble.dismiss();
       return;
     }
-    if (generating) return;
-
-    generating = true;
-    try {
-      const fragment = await window.minari.speak();
-      bubble.show(fragment);
-    } finally {
-      generating = false;
-    }
+    await speakAndShow();
   });
 
   let lastX: number | null = null;
@@ -118,6 +123,10 @@ async function boot() {
       clickThrough = true;
       window.minari.setClickThrough(true);
     }
+  } else {
+    const bootState = await window.minari.getBootState();
+    console.log('[boot] resume:', bootState);
+    runResumeScene({ sprout, activity: bootState.activity, speakAndShow });
   }
 }
 

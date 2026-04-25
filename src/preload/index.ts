@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { BootState } from '../shared/snapshot';
 
 export interface BirthState {
   completed: boolean;
@@ -18,4 +19,5 @@ contextBridge.exposeInMainWorld('minari', {
   getBirthState: (): Promise<BirthState> => ipcRenderer.invoke('minari:get-birth-state'),
   completeBirth: (nickname: string): Promise<BirthCompletion> =>
     ipcRenderer.invoke('minari:complete-birth', nickname),
+  getBootState: (): Promise<BootState> => ipcRenderer.invoke('minari:get-boot-state'),
 });
