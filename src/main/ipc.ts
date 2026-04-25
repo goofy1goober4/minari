@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { speakAsMinari } from './llm/speak';
 import { BirthStateMachine } from './birth';
-import { computeBootState, setCurrent } from './snapshot';
+import { computeBootState, setCurrent, markInteraction } from './snapshot';
 import { getState } from './memory/repo';
 import type { BootState } from '../shared/snapshot';
 
@@ -9,6 +9,7 @@ export function registerIpc() {
   const birth = new BirthStateMachine();
 
   ipcMain.handle('minari:speak', async () => {
+    markInteraction();
     try {
       return await speakAsMinari();
     } catch (err) {

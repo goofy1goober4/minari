@@ -12,6 +12,7 @@ const KEY_ACTIVITY = 'last_activity';
 const KEY_MOOD = 'last_mood';
 const KEY_SEEN = 'last_seen_at';
 const KEY_FRAGMENT = 'last_fragment';
+const KEY_INTERACTION = 'last_interaction_at';
 
 const TEN_MIN = 10 * 60 * 1000;
 const THREE_HR = 3 * 60 * 60 * 1000;
@@ -78,6 +79,15 @@ export function getCurrentMood(): Mood {
 export function setCurrent(activity: Activity, mood: Mood) {
   currentActivity = activity;
   currentMood = mood;
+}
+
+export function markInteraction() {
+  setState(KEY_INTERACTION, String(Date.now()));
+}
+
+export function getLastInteractionAt(): number | null {
+  const v = getState(KEY_INTERACTION);
+  return v ? Number(v) : null;
 }
 
 export function computeBootState(now = Date.now()): {

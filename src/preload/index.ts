@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { BootState } from '../shared/snapshot';
 
 export interface BirthState {
@@ -20,4 +20,9 @@ contextBridge.exposeInMainWorld('minari', {
   completeBirth: (nickname: string): Promise<BirthCompletion> =>
     ipcRenderer.invoke('minari:complete-birth', nickname),
   getBootState: (): Promise<BootState> => ipcRenderer.invoke('minari:get-boot-state'),
+  onPing: (callback: (fragment: string) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, fragment: string) => callback(fragment);
+    ipcRenderer.on('minari:ping', listener);
+    return () => ipcRenderer.removeListener('minari:ping', listener);
+  },
 });

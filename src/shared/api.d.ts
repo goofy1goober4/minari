@@ -8,6 +8,7 @@ declare global {
       getBirthState(): Promise<{ completed: boolean; nickname: string | null }>;
       completeBirth(nickname: string): Promise<{ nickname: string; firstFragment: string }>;
       getBootState(): Promise<BootState>;
+      onPing(callback: (fragment: string) => void): () => void;
     };
   }
 }

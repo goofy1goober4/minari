@@ -73,6 +73,30 @@ async function boot() {
     }
   };
 
+  // Soft pings: dropped during birth, dropped if a bubble is already visible
+  // or a click-triggered speak is in flight (no escalation).
+  window.minari.onPing((fragment) => {
+    console.log(
+      '[ping] received: ' +
+        JSON.stringify(fragment) +
+        ' mode=' + mode +
+        ' generating=' + generating +
+        ' bubbleVisible=' + bubble.isVisible(),
+    );
+    if (mode === 'birth') {
+      console.log('[ping] dropped: birth mode');
+      return;
+    }
+    if (generating || bubble.isVisible()) {
+      console.log('[ping] dropped: busy');
+      return;
+    }
+    sprout.nudge();
+    bubble.show(fragment);
+    console.log('[ping] shown');
+  });
+  console.log('[boot] onPing handler registered');
+
   app.ticker.add((ticker) => {
     sprout.breathe(ticker.deltaMS);
     bubble.update(ticker.deltaMS);

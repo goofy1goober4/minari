@@ -28,6 +28,15 @@ export function createPetWindow(): BrowserWindow {
   // enters a hit region (sprout / bubble) and back on when it leaves.
   win.setIgnoreMouseEvents(true, { forward: true });
 
+  // Forward our [tagged] renderer console.log lines to main stdout so we can
+  // diagnose without DevTools (which has been crashing). Filters by tag prefix
+  // so we don't drown in DevTools-internal noise.
+  win.webContents.on('console-message', (_event, _level, message) => {
+    if (/^\[[a-z-]+\]/i.test(message)) {
+      console.log('[renderer] ' + message);
+    }
+  });
+
   const devUrl = process.env['ELECTRON_RENDERER_URL'];
   if (devUrl) {
     win.loadURL(devUrl);
