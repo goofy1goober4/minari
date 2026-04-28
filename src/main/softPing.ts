@@ -2,32 +2,25 @@ import { app, type WebContents } from 'electron';
 import { recordMessage, getState, setState } from './memory/repo';
 import { getCurrentMood, getLastInteractionAt, noteSpoken } from './snapshot';
 import { generateNoticingFragment } from './llm/pingFragment';
+import {
+  DEV_SUPPRESSION_CONFIG,
+  PROD_SUPPRESSION_CONFIG,
+  evaluateSuppression,
+  type SuppressReason,
+} from '../shared/softPingSuppression';
 
 // Dev mode shrinks every gate so a session can actually exercise pings.
 // Quiet hours are disabled in dev (QUIET_END_HOUR=0) so 2 a.m. testing works.
 // Production values match the soft-ping spec.
 const IS_DEV = !app.isPackaged;
 
+const SUPPRESSION_CONFIG = IS_DEV ? DEV_SUPPRESSION_CONFIG : PROD_SUPPRESSION_CONFIG;
 const TICK_MS = IS_DEV ? 30 * 1000 : 5 * 60 * 1000;
-const BOOT_GRACE_MS = IS_DEV ? 10 * 1000 : 60 * 1000;
-const QUIET_END_HOUR = IS_DEV ? 0 : 7;
-const QUIET_END_GRACE_MIN = IS_DEV ? 0 : 10;
-const MIN_SPACING_MS = IS_DEV ? 2 * 60 * 1000 : 90 * 60 * 1000;
-const INTERACTION_COOLDOWN_MS = IS_DEV ? 30 * 1000 : 10 * 60 * 1000;
-const DAILY_CAP = IS_DEV ? 10 : 2;
 const FIRE_PROB = IS_DEV ? 0.5 : 0.18;
 
 const KEY_PINGS_TODAY = 'pings_today';
 const KEY_PING_DAY = 'ping_day';
 const KEY_LAST_PING_AT = 'last_ping_at';
-
-type SuppressReason =
-  | 'boot-grace'
-  | 'quiet-hours'
-  | 'quiet-end-grace'
-  | 'daily-cap'
-  | 'min-spacing'
-  | 'interaction-cooldown';
 
 let timer: NodeJS.Timeout | null = null;
 let bootAt = 0;
@@ -47,17 +40,17 @@ export function startSoftPingScheduler(webContentsGetter: () => WebContents | nu
       '): tick=' +
       TICK_MS / 1000 +
       's boot_grace=' +
-      BOOT_GRACE_MS / 1000 +
+      SUPPRESSION_CONFIG.bootGraceMs / 1000 +
       's min_spacing=' +
-      MIN_SPACING_MS / 60000 +
+      SUPPRESSION_CONFIG.minSpacingMs / 60000 +
       'min interaction_cooldown=' +
-      INTERACTION_COOLDOWN_MS / 1000 +
+      SUPPRESSION_CONFIG.interactionCooldownMs / 1000 +
       's daily_cap=' +
-      DAILY_CAP +
+      SUPPRESSION_CONFIG.dailyCap +
       ' fire_prob=' +
       FIRE_PROB +
       ' quiet_end_hour=' +
-      QUIET_END_HOUR,
+      SUPPRESSION_CONFIG.quietEndHour,
   );
 }
 
@@ -88,21 +81,15 @@ async function tick() {
 }
 
 function checkSuppression(now: number): SuppressReason | null {
-  if (now - bootAt < BOOT_GRACE_MS) return 'boot-grace';
-  const d = new Date(now);
-  const hour = d.getHours();
-  const minute = d.getMinutes();
-  if (hour < QUIET_END_HOUR) return 'quiet-hours';
-  if (hour === QUIET_END_HOUR && minute < QUIET_END_GRACE_MIN) return 'quiet-end-grace';
-  rolloverDayIfNeeded(d);
-  if (getPingsToday() >= DAILY_CAP) return 'daily-cap';
-  const lastPing = Number(getState(KEY_LAST_PING_AT) || 0);
-  if (now - lastPing < MIN_SPACING_MS) return 'min-spacing';
-  const lastInteraction = getLastInteractionAt();
-  if (lastInteraction && now - lastInteraction < INTERACTION_COOLDOWN_MS) {
-    return 'interaction-cooldown';
-  }
-  return null;
+  rolloverDayIfNeeded(new Date(now));
+  return evaluateSuppression({
+    now,
+    bootAt,
+    lastPingAt: Number(getState(KEY_LAST_PING_AT) || 0),
+    lastInteractionAt: getLastInteractionAt(),
+    pingsToday: getPingsToday(),
+    config: SUPPRESSION_CONFIG,
+  });
 }
 
 function rolloverDayIfNeeded(d: Date) {

@@ -23,7 +23,7 @@ const SWAY_MAX = 0.55;
 // ~80° → tips meet near-vertical above the stem.
 const FOLD_ANGLE = 1.4;
 
-export class Sprout extends Container {
+export class Minari extends Container {
   private body: Container;
   private shadow: Graphics;
   private leaves: Container;

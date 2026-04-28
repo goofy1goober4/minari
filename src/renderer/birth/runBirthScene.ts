@@ -1,5 +1,5 @@
 import type { Application } from 'pixi.js';
-import type { Sprout } from '../pet/Sprout';
+import type { Minari } from '../pet/Minari';
 import type { Bubble } from '../ui/Bubble';
 import { Seed } from './Seed';
 import { NicknamePrompt } from './NicknamePrompt';
@@ -19,7 +19,7 @@ const POST_GERMINATE_BEAT_MS = 600;
 
 export interface BirthSceneDeps {
   app: Application;
-  sprout: Sprout;
+  sprout: Minari;
   bubble: Bubble;
 }
 

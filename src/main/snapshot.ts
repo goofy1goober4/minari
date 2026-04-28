@@ -2,6 +2,7 @@ import { getState, setState } from './memory/repo';
 import {
   ACTIVITIES,
   MOODS,
+  bucketFor,
   type Activity,
   type ElapsedBucket,
   type Mood,
@@ -13,10 +14,6 @@ const KEY_MOOD = 'last_mood';
 const KEY_SEEN = 'last_seen_at';
 const KEY_FRAGMENT = 'last_fragment';
 const KEY_INTERACTION = 'last_interaction_at';
-
-const TEN_MIN = 10 * 60 * 1000;
-const THREE_HR = 3 * 60 * 60 * 1000;
-const TWELVE_HR = 12 * 60 * 60 * 1000;
 
 const FRESH_AWAKE_ACTIVITIES: readonly Activity[] = ['idle', 'looking_out', 'reading'];
 const FRESH_DAY_MOODS: readonly Mood[] = ['calm', 'curious', 'content'];
@@ -153,13 +150,6 @@ function persist(fragment: string) {
   setState(KEY_MOOD, currentMood);
   setState(KEY_SEEN, String(Date.now()));
   setState(KEY_FRAGMENT, fragment);
-}
-
-function bucketFor(elapsedMs: number): ElapsedBucket {
-  if (elapsedMs < TEN_MIN) return 'same_moment';
-  if (elapsedMs < THREE_HR) return 'quiet_shift';
-  if (elapsedMs < TWELVE_HR) return 'new_cycle';
-  return 'new_day';
 }
 
 function pick<T>(arr: readonly T[]): T {

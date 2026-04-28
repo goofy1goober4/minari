@@ -1,5 +1,5 @@
 import { Application } from 'pixi.js';
-import { Sprout } from './pet/Sprout';
+import { Minari } from './pet/Minari';
 import { Bubble } from './ui/Bubble';
 import { runBirthScene } from './birth/runBirthScene';
 import { runResumeScene } from './resume/runResumeScene';
@@ -22,7 +22,7 @@ async function boot() {
 
   document.body.appendChild(app.canvas);
 
-  const sprout = new Sprout();
+  const sprout = new Minari();
   sprout.x = app.screen.width / 2;
   sprout.y = app.screen.height / 2 + 50;
   app.stage.addChild(sprout);
