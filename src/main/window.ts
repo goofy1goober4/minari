@@ -21,6 +21,10 @@ export function createPetWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Soft pings + resume notice fire without a prior gesture, so we need
+      // the AudioContext to start unsuspended. We render in our own pet window
+      // only, so this can't accidentally autoplay arbitrary external media.
+      autoplayPolicy: 'no-user-gesture-required',
     },
   });
 

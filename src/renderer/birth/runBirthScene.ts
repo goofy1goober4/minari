@@ -3,6 +3,7 @@ import type { Minari } from '../pet/Minari';
 import type { Bubble } from '../ui/Bubble';
 import { Seed } from './Seed';
 import { NicknamePrompt } from './NicknamePrompt';
+import { makeVoiceProfile } from '../sound/mumble';
 
 const SEED_FADE_IN_MS = 700;
 const SEED_HOLD_MS = 500;
@@ -68,14 +69,17 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
   prompt.setBusy(true);
 
   let firstFragment: string;
+  let resolvedNickname = nickname;
   try {
     const result = await window.minari.completeBirth(nickname);
     firstFragment = result.firstFragment;
+    resolvedNickname = result.nickname;
   } catch (err) {
     console.error('[birth] completeBirth failed:', err);
     firstFragment = '...';
   }
 
+  bubble.setVoice(makeVoiceProfile(resolvedNickname, 'calm'));
   await prompt.dismiss();
   bubble.show(firstFragment);
 }

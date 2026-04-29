@@ -1,4 +1,5 @@
 import { Container, Graphics, Text } from 'pixi.js';
+import { playMumble, type VoiceProfile } from '../sound/mumble';
 
 const BG_COLOR = 0xfffbf3;
 const BORDER_COLOR = 0xd9d1c3;
@@ -21,6 +22,7 @@ export class Bubble extends Container {
   private phase: Phase = 'hidden';
   private phaseElapsed = 0;
   private holdDuration = 0;
+  private voice: VoiceProfile | null = null;
 
   constructor() {
     super();
@@ -38,6 +40,10 @@ export class Bubble extends Container {
       },
     });
     this.addChild(this.bg, this._label);
+  }
+
+  setVoice(profile: VoiceProfile | null) {
+    this.voice = profile;
   }
 
   show(text: string) {
@@ -59,6 +65,8 @@ export class Bubble extends Container {
     this.phase = 'in';
     this.phaseElapsed = 0;
     this.visible = true;
+
+    if (this.voice) playMumble(text, this.voice);
   }
 
   dismiss() {

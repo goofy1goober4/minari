@@ -3,6 +3,7 @@ import { Minari } from './pet/Minari';
 import { Bubble } from './ui/Bubble';
 import { runBirthScene } from './birth/runBirthScene';
 import { runResumeScene } from './resume/runResumeScene';
+import { makeVoiceProfile, primeAudio } from './sound/mumble';
 
 const SPROUT_HIT_HALF_W = 30;
 const SPROUT_HIT_TOP = -62;
@@ -103,6 +104,7 @@ async function boot() {
   });
 
   window.addEventListener('pointerdown', async () => {
+    primeAudio();
     if (mode === 'birth') return;
     sprout.nudge();
 
@@ -150,6 +152,9 @@ async function boot() {
   } else {
     const bootState = await window.minari.getBootState();
     console.log('[boot] resume:', bootState);
+    if (bootState.nickname) {
+      bubble.setVoice(makeVoiceProfile(bootState.nickname, bootState.mood));
+    }
     runResumeScene({ sprout, activity: bootState.activity, speakAndShow });
   }
 }
