@@ -119,6 +119,17 @@ async function boot() {
   let lastT = performance.now();
   window.addEventListener('pointermove', (e) => {
     if (mode === 'birth') return;
+
+    // While a mouse button is held over our window (e.buttons !== 0), the user
+    // is dragging — either inside our window or a drag-from-outside passing
+    // over us. Force click-through off so dragenter/over/drop reach us.
+    // pointermove keeps firing thanks to forward:true; once buttons go back
+    // to 0 the hit-test branch below takes over and restores passthrough.
+    if (e.buttons !== 0) {
+      setClickThroughIfChanged(false);
+      return;
+    }
+
     const now = performance.now();
     const dt = Math.max((now - lastT) / 1000, 1 / 240);
     const vx = lastX === null ? 0 : Math.max(-3000, Math.min(3000, (e.clientX - lastX) / dt));
@@ -132,6 +143,30 @@ async function boot() {
     if (mode === 'birth') return;
     sprout.onPointerLeave();
     setClickThroughIfChanged(true);
+  });
+
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+  });
+  window.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    if (mode === 'birth') return;
+    if (generating || bubble.isVisible()) return;
+    const file = e.dataTransfer?.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const path = window.minari.getPathForFile(file);
+    if (!path) return;
+    console.log('[gift] dropped: ' + path);
+    generating = true;
+    sprout.nudge();
+    try {
+      const fragment = await window.minari.giftImage(path);
+      bubble.show(fragment);
+    } catch (err) {
+      console.error('[gift] failed:', err);
+    } finally {
+      generating = false;
+    }
   });
 
   const birthState = await window.minari.getBirthState();

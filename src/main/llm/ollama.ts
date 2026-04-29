@@ -1,6 +1,7 @@
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  images?: string[];
 }
 
 export interface CallOllamaOptions {
@@ -8,6 +9,8 @@ export interface CallOllamaOptions {
   systemPrompt: string;
   history: ChatMessage[];
   userMessage: string;
+  // Base64 image payloads attached to the user turn (no data: prefix).
+  images?: string[];
   host?: string;
   temperature?: number;
   numPredict?: number;
@@ -15,10 +18,12 @@ export interface CallOllamaOptions {
 
 export async function callOllama(opts: CallOllamaOptions): Promise<string> {
   const host = opts.host ?? 'http://localhost:11434';
+  const userMsg: ChatMessage = { role: 'user', content: opts.userMessage };
+  if (opts.images && opts.images.length > 0) userMsg.images = opts.images;
   const messages: ChatMessage[] = [
     { role: 'system', content: opts.systemPrompt },
     ...opts.history,
-    { role: 'user', content: opts.userMessage },
+    userMsg,
   ];
 
   const res = await fetch(`${host}/api/chat`, {

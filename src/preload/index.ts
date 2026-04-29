@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import type { BootState } from '../shared/snapshot';
 
 export interface BirthState {
@@ -25,4 +25,8 @@ contextBridge.exposeInMainWorld('minari', {
     ipcRenderer.on('minari:ping', listener);
     return () => ipcRenderer.removeListener('minari:ping', listener);
   },
+  giftImage: (filePath: string): Promise<string> =>
+    ipcRenderer.invoke('minari:gift-image', filePath),
+  // Electron 32+ removed File.path; webUtils.getPathForFile is the replacement.
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 });

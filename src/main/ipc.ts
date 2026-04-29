@@ -1,8 +1,9 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { speakAsMinari } from './llm/speak';
 import { BirthStateMachine } from './birth';
-import { computeBootState, setCurrent, markInteraction } from './snapshot';
-import { getState } from './memory/repo';
+import { computeBootState, setCurrent, markInteraction, noteSpoken } from './snapshot';
+import { getState, recordMessage } from './memory/repo';
+import { reactToImage, readImageAsBase64 } from './llm/imageReact';
 import type { BootState } from '../shared/snapshot';
 
 export function registerIpc() {
@@ -40,6 +41,23 @@ export function registerIpc() {
     };
     console.log('[ipc] get-boot-state → ' + JSON.stringify(result));
     return result;
+  });
+
+  ipcMain.handle('minari:gift-image', async (_event, filePath: string): Promise<string> => {
+    markInteraction();
+    try {
+      const base64 = await readImageAsBase64(filePath);
+      console.log('[ipc] gift-image: ' + filePath + ' (' + base64.length + ' base64 chars)');
+      const fragment = await reactToImage(base64);
+      recordMessage('user', '[image gift]');
+      recordMessage('minari', fragment);
+      noteSpoken(fragment);
+      console.log('[ipc] gift-image → ' + JSON.stringify(fragment));
+      return fragment;
+    } catch (err) {
+      console.error('[ipc] gift-image failed:', err);
+      return '...';
+    }
   });
 
   ipcMain.on('minari:set-click-through', (event, passThrough: boolean) => {

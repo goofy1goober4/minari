@@ -9,6 +9,8 @@ declare global {
       completeBirth(nickname: string): Promise<{ nickname: string; firstFragment: string }>;
       getBootState(): Promise<BootState>;
       onPing(callback: (fragment: string) => void): () => void;
+      giftImage(filePath: string): Promise<string>;
+      getPathForFile(file: File): string;
     };
   }
 }
