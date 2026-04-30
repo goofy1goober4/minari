@@ -1,10 +1,10 @@
 import { callOllama, type ChatMessage } from './ollama';
 import { CLICK_TRIGGER, moodFlavoredSystemPrompt } from './prompts';
 import { filterGuardrails } from './guardrails';
+import { MODEL, effectiveTemperature } from './model';
 import { getRecentHistory, recordMessage } from '../memory/repo';
 import { getCurrentMood, noteSpoken } from '../snapshot';
 
-const MODEL = 'gemma4:e4b';
 const HISTORY_TURNS = 8;
 
 export async function speakAsMinari(): Promise<string> {
@@ -18,6 +18,7 @@ export async function speakAsMinari(): Promise<string> {
     systemPrompt: moodFlavoredSystemPrompt(getCurrentMood()),
     history,
     userMessage: CLICK_TRIGGER,
+    temperature: effectiveTemperature(0.9),
   });
 
   const fragment = filterGuardrails(raw);

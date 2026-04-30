@@ -1,27 +1,40 @@
 import { callOllama } from './ollama';
 import { filterGuardrails } from './guardrails';
-import { MOOD_MODIFIERS } from './prompts';
+import { MODEL, effectiveTemperature } from './model';
+import {
+  MOOD_MODIFIERS,
+  PING_POOL,
+  RECENT_INJECT_N,
+  alreadySaidLine,
+  pickN,
+} from './prompts';
+import { getRecentSpoken, noteRecentSpoken } from './recentSpoken';
 import type { Mood } from '../../shared/snapshot';
 
-const MODEL = 'gemma4:e4b';
-
-const PING_SYSTEM = `You are Minari, a tiny sprout. Nobody asked you anything.
+function buildPingSystem(mood: Mood): string {
+  const ex = pickN(PING_POOL, 3).join(' ');
+  const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
+  return `You are Minari, a tiny sprout. Nobody asked you anything.
 You just noticed something small around you, and quietly said one word about it.
 
 Speak only ONE 1-3 word lowercase fragment.
-Examples: "...dust." "warm air." "outside." "shh." "look." "mm... soft." "...bird?"
+Examples: ${ex}
 
-One fragment. Nothing more. No questions to the user. No greetings. No "hello" or "hi".`;
+One fragment. Nothing more. No questions to the user. No greetings. No "hello" or "hi".
+
+${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
+}
 
 export async function generateNoticingFragment(mood: Mood): Promise<string> {
-  const systemPrompt = PING_SYSTEM + '\n\n' + MOOD_MODIFIERS[mood];
   const raw = await callOllama({
     model: MODEL,
-    systemPrompt,
+    systemPrompt: buildPingSystem(mood),
     history: [],
     userMessage: '(notice)',
-    temperature: 0.95,
+    temperature: effectiveTemperature(0.95),
     numPredict: 16,
   });
-  return filterGuardrails(raw);
+  const fragment = filterGuardrails(raw);
+  noteRecentSpoken(fragment);
+  return fragment;
 }

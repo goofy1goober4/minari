@@ -1,4 +1,5 @@
 import { getState, setState } from './memory/repo';
+import { noteRecentSpoken } from './llm/recentSpoken';
 import {
   ACTIVITIES,
   MOODS,
@@ -8,6 +9,8 @@ import {
   type Mood,
   type Snapshot,
 } from '../shared/snapshot';
+
+export { getRecentSpoken } from './llm/recentSpoken';
 
 const KEY_ACTIVITY = 'last_activity';
 const KEY_MOOD = 'last_mood';
@@ -50,6 +53,7 @@ export function saveInitialSnapshot(firstFragment: string) {
 
 export function noteSpoken(fragment: string) {
   persist(fragment);
+  noteRecentSpoken(fragment);
   console.log(
     '[snapshot] noteSpoken: activity=' +
       currentActivity +

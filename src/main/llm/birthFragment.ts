@@ -1,29 +1,36 @@
 import { callOllama } from './ollama';
 import { filterGuardrails } from './guardrails';
+import { MODEL, effectiveTemperature } from './model';
+import { BIRTH_POOL, RECENT_INJECT_N, alreadySaidLine, pickN } from './prompts';
+import { getRecentSpoken, noteRecentSpoken } from './recentSpoken';
 
-const MODEL = 'gemma4:e4b';
-
-const BIRTH_SYSTEM = `You are Minari, a tiny sprout that just woke up for the very first time.
+function buildBirthSystem(): string {
+  const ex = pickN(BIRTH_POOL, 3).join(' ');
+  const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
+  return `You are Minari, a tiny sprout that just woke up for the very first time.
 The user gave you a name and you are seeing the world for the first moment.
 
 Speak only ONE quiet 1-3 word lowercase fragment — your very first word ever.
 No greetings templates. No explanations. No full sentences.
 
-Examples: "...oh." "warm." "you?" "hi." "soft." "...mm." "light."
+Examples: ${ex}
 
-One fragment. Nothing more.`;
+One fragment. Nothing more.${tail ? '\n\n' + tail : ''}`;
+}
 
 export async function generateBirthFragment(nickname: string): Promise<string> {
   const userMessage = `Your name is "${nickname}". Say your first word.`;
 
   const raw = await callOllama({
     model: MODEL,
-    systemPrompt: BIRTH_SYSTEM,
+    systemPrompt: buildBirthSystem(),
     history: [],
     userMessage,
-    temperature: 0.95,
+    temperature: effectiveTemperature(0.95),
     numPredict: 16,
   });
 
-  return filterGuardrails(raw);
+  const fragment = filterGuardrails(raw);
+  noteRecentSpoken(fragment);
+  return fragment;
 }

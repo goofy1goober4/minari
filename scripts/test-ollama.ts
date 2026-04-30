@@ -1,8 +1,8 @@
 import { callOllama } from '../src/main/llm/ollama.ts';
 import { SYSTEM_PROMPT, CLICK_TRIGGER } from '../src/main/llm/prompts.ts';
 import { filterGuardrails } from '../src/main/llm/guardrails.ts';
+import { MODEL } from '../src/main/llm/model.ts';
 
-const MODEL = 'gemma4:e4b';
 const RUNS = 10;
 
 async function main() {
