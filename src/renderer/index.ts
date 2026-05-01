@@ -40,7 +40,7 @@ async function boot() {
   // Bubble pivots on its bottom edge; sit it just above the sprite top with
   // a small breathing-room gap.
   bubble.y = sprout.y - SPRITE_HEIGHT + 2;
-  app.stage.addChild(bubble);
+  // Bubble is a DOM overlay (mounted in its constructor); not a stage child.
 
   let generating = false;
   let clickThrough = true;
