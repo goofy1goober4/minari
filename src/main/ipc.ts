@@ -102,6 +102,14 @@ export function registerIpc() {
     },
   );
 
+  ipcMain.on('minari:move-window', (event, dx: number, dy: number) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return;
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
+    const [x, y] = win.getPosition();
+    win.setPosition(Math.round(x + dx), Math.round(y + dy), false);
+  });
+
   ipcMain.on('minari:set-click-through', (event, passThrough: boolean) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return;

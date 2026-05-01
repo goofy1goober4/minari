@@ -11,6 +11,7 @@ declare global {
     minari: {
       speak(): Promise<string>;
       setClickThrough(passThrough: boolean): void;
+      moveWindow(dx: number, dy: number): void;
       getBirthState(): Promise<{ completed: boolean; nickname: string | null; petName: string | null }>;
       completeBirth(
         nickname: string,

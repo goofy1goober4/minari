@@ -24,6 +24,9 @@ contextBridge.exposeInMainWorld('minari', {
   setClickThrough: (passThrough: boolean): void => {
     ipcRenderer.send('minari:set-click-through', passThrough);
   },
+  moveWindow: (dx: number, dy: number): void => {
+    ipcRenderer.send('minari:move-window', dx, dy);
+  },
   getBirthState: (): Promise<BirthState> => ipcRenderer.invoke('minari:get-birth-state'),
   completeBirth: (nickname: string, petName: string): Promise<BirthCompletion> =>
     ipcRenderer.invoke('minari:complete-birth', nickname, petName),

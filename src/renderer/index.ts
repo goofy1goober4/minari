@@ -43,14 +43,17 @@ async function boot() {
   let mode: Mode = 'idle';
   let stage: GrowthStage = 'babble';
 
-  // Long-press gesture state. Armed when curious + a press starts in a free
-  // (no bubble, no busy) state; fires after LONGPRESS_MS unless cancelled by
-  // an early release or by motion past LONGPRESS_TOLERANCE_PX (= petting).
+  // Press-gesture state. `armed` covers the window between pointerdown and
+  // the moment we've decided what kind of gesture this was — tap / long-press
+  // (curious only) / window-drag. `lpTimer` fires only in curious; `dragging`
+  // is set when motion past tolerance happens with the button still held.
   let lpTimer: ReturnType<typeof setTimeout> | null = null;
   let lpArmed = false;
   let lpFired = false;
   let lpStartX = 0;
   let lpStartY = 0;
+  let dragging = false;
+  let captureTarget: Element | null = null;
 
   const clearLongpress = () => {
     if (lpTimer) {
@@ -58,6 +61,25 @@ async function boot() {
       lpTimer = null;
     }
     lpArmed = false;
+  };
+
+  // Coalesce per-event move deltas to the frame boundary so we don't fan out
+  // 120Hz IPC calls at setPosition.
+  let pendingDx = 0;
+  let pendingDy = 0;
+  let moveRaf: number | null = null;
+  const queueWindowMove = (dx: number, dy: number) => {
+    pendingDx += dx;
+    pendingDy += dy;
+    if (moveRaf !== null) return;
+    moveRaf = requestAnimationFrame(() => {
+      moveRaf = null;
+      const x = pendingDx;
+      const y = pendingDy;
+      pendingDx = 0;
+      pendingDy = 0;
+      if (x !== 0 || y !== 0) window.minari.moveWindow(x, y);
+    });
   };
 
   const hitTest = (x: number, y: number): boolean => {
@@ -155,7 +177,7 @@ async function boot() {
     bubble.update(ticker.deltaMS);
   });
 
-  window.addEventListener('pointerdown', async (e) => {
+  window.addEventListener('pointerdown', (e) => {
     primeAudio();
     if (mode !== 'idle') return;
     sprout.nudge();
@@ -166,31 +188,54 @@ async function boot() {
     }
     if (generating) return;
 
-    if (stage !== 'curious') {
-      // Babble: press-response, current behaviour.
-      await speakAndShow();
-      return;
-    }
-
-    // Curious: defer the speak/longpress decision to release/timeout.
-    lpArmed = true;
+    // Reset gesture state defensively — covers a missed pointerup off-window.
+    dragging = false;
     lpFired = false;
+    lpArmed = true;
     lpStartX = e.clientX;
     lpStartY = e.clientY;
-    lpTimer = setTimeout(() => {
-      if (!lpArmed) return;
-      lpArmed = false;
-      lpFired = true;
-      lpTimer = null;
-      void openCuriousPrompt();
-    }, LONGPRESS_MS);
+
+    // Long-press timer only arms in curious; babble's tap path waits for
+    // pointerup either way (so window-drag can still preempt it).
+    if (stage === 'curious') {
+      lpTimer = setTimeout(() => {
+        if (!lpArmed) return;
+        lpArmed = false;
+        lpFired = true;
+        lpTimer = null;
+        void openCuriousPrompt();
+      }, LONGPRESS_MS);
+    }
+
+    // Capture the pointer so a fast drag past the window edge still routes
+    // pointermove/up back to us — otherwise we'd leak `dragging=true`.
+    if (e.target instanceof Element) {
+      try {
+        e.target.setPointerCapture(e.pointerId);
+        captureTarget = e.target;
+      } catch {
+        // Some targets (e.g. document) don't support capture; non-fatal.
+      }
+    }
   });
 
-  window.addEventListener('pointerup', async () => {
+  window.addEventListener('pointerup', async (e) => {
+    if (captureTarget) {
+      try {
+        captureTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // Ignore — capture may have already been released by the browser.
+      }
+      captureTarget = null;
+    }
     if (mode !== 'idle') return;
+    if (dragging) {
+      dragging = false;
+      return; // drag consumed — no tap-to-speak
+    }
     if (lpFired) {
       lpFired = false;
-      return; // longpress consumed — no tap-to-speak
+      return;
     }
     if (!lpArmed) return;
     clearLongpress();
@@ -203,21 +248,32 @@ async function boot() {
   window.addEventListener('pointermove', (e) => {
     if (mode === 'birth') return;
 
-    // Cancel longpress if the cursor wanders past tolerance — the user is
-    // petting (drag-over-sprout), not pressing-and-holding.
+    // Promote an armed press to either drag (motion + button held) or just
+    // cancel (motion + button already up). Past LONGPRESS_TOLERANCE_PX we
+    // commit to the new gesture and stop tracking the press as a tap.
     if (lpArmed) {
       const dx = e.clientX - lpStartX;
       const dy = e.clientY - lpStartY;
       if (dx * dx + dy * dy > LONGPRESS_TOLERANCE_PX * LONGPRESS_TOLERANCE_PX) {
         clearLongpress();
+        if (e.buttons !== 0) {
+          dragging = true;
+        }
       }
     }
 
-    // While a mouse button is held over our window (e.buttons !== 0), the user
-    // is dragging — either inside our window or a drag-from-outside passing
-    // over us. Force click-through off so dragenter/over/drop reach us.
-    // pointermove keeps firing thanks to forward:true; once buttons go back
-    // to 0 the hit-test branch below takes over and restores passthrough.
+    if (dragging) {
+      // Window-drag mode: forward delta to main, suppress everything else.
+      queueWindowMove(e.movementX, e.movementY);
+      return;
+    }
+
+    // While a mouse button is held over our window (e.buttons !== 0) and we
+    // aren't dragging the window, the user is dragging *something else* in —
+    // typically a file from outside. Force click-through off so
+    // dragenter/over/drop reach us. pointermove keeps firing thanks to
+    // forward:true; once buttons go back to 0 the hit-test branch below
+    // takes over and restores passthrough.
     if (e.buttons !== 0) {
       setClickThroughIfChanged(false);
       return;
