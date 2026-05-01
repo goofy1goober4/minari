@@ -1,4 +1,10 @@
-import type { BootState } from './snapshot';
+import type { BootState, GrowthStage } from './snapshot';
+
+export interface RecentMessage {
+  role: 'user' | 'minari';
+  content: string;
+  createdAt: number;
+}
 
 declare global {
   interface Window {
@@ -11,6 +17,10 @@ declare global {
       onPing(callback: (fragment: string) => void): () => void;
       giftImage(filePath: string): Promise<string>;
       getPathForFile(file: File): string;
+
+      getStage(): Promise<GrowthStage>;
+      converse(text: string): Promise<string>;
+      getRecentMessages(limit?: number): Promise<RecentMessage[]>;
     };
   }
 }

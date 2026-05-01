@@ -1,15 +1,20 @@
 import { Application } from 'pixi.js';
 import { Minari } from './pet/Minari';
 import { Bubble } from './ui/Bubble';
+import { CuriousPrompt } from './ui/CuriousPrompt';
 import { runBirthScene } from './birth/runBirthScene';
 import { runResumeScene } from './resume/runResumeScene';
 import { makeVoiceProfile, primeAudio } from './sound/mumble';
+import type { GrowthStage } from '../shared/snapshot';
 
 const SPROUT_HIT_HALF_W = 30;
 const SPROUT_HIT_TOP = -62;
 const SPROUT_HIT_BOTTOM = 14;
 
-type Mode = 'birth' | 'idle';
+const LONGPRESS_MS = 500;
+const LONGPRESS_TOLERANCE_PX = 6;
+
+type Mode = 'birth' | 'idle' | 'input';
 
 async function boot() {
   const app = new Application();
@@ -36,6 +41,24 @@ async function boot() {
   let generating = false;
   let clickThrough = true;
   let mode: Mode = 'idle';
+  let stage: GrowthStage = 'babble';
+
+  // Long-press gesture state. Armed when curious + a press starts in a free
+  // (no bubble, no busy) state; fires after LONGPRESS_MS unless cancelled by
+  // an early release or by motion past LONGPRESS_TOLERANCE_PX (= petting).
+  let lpTimer: ReturnType<typeof setTimeout> | null = null;
+  let lpArmed = false;
+  let lpFired = false;
+  let lpStartX = 0;
+  let lpStartY = 0;
+
+  const clearLongpress = () => {
+    if (lpTimer) {
+      clearTimeout(lpTimer);
+      lpTimer = null;
+    }
+    lpArmed = false;
+  };
 
   const hitTest = (x: number, y: number): boolean => {
     const sdx = x - sprout.x;
@@ -74,8 +97,37 @@ async function boot() {
     }
   };
 
-  // Soft pings: dropped during birth, dropped if a bubble is already visible
-  // or a click-triggered speak is in flight (no escalation).
+  const openCuriousPrompt = async () => {
+    if (mode !== 'idle') return;
+    mode = 'input';
+    setClickThroughIfChanged(false);
+    const prompt = new CuriousPrompt({
+      fetchHistory: () => window.minari.getRecentMessages(20),
+    });
+    prompt.mount();
+
+    const text = await prompt.awaitSubmit();
+    if (text === null) {
+      await prompt.dismiss();
+      mode = 'idle';
+      return;
+    }
+    prompt.setBusy(true);
+    sprout.nudge();
+    let fragment = '...';
+    try {
+      fragment = await window.minari.converse(text);
+    } catch (err) {
+      console.error('[curious] converse failed:', err);
+    }
+    await prompt.dismiss();
+    mode = 'idle';
+    bubble.show(fragment);
+  };
+
+  // Soft pings: dropped during birth, dropped while curious input is open,
+  // dropped if a bubble is already visible or a click-triggered speak is in
+  // flight (no escalation).
   window.minari.onPing((fragment) => {
     console.log(
       '[ping] received: ' +
@@ -84,8 +136,8 @@ async function boot() {
         ' generating=' + generating +
         ' bubbleVisible=' + bubble.isVisible(),
     );
-    if (mode === 'birth') {
-      console.log('[ping] dropped: birth mode');
+    if (mode !== 'idle') {
+      console.log('[ping] dropped: mode=' + mode);
       return;
     }
     if (generating || bubble.isVisible()) {
@@ -103,15 +155,46 @@ async function boot() {
     bubble.update(ticker.deltaMS);
   });
 
-  window.addEventListener('pointerdown', async () => {
+  window.addEventListener('pointerdown', async (e) => {
     primeAudio();
-    if (mode === 'birth') return;
+    if (mode !== 'idle') return;
     sprout.nudge();
 
     if (bubble.isVisible()) {
       bubble.dismiss();
       return;
     }
+    if (generating) return;
+
+    if (stage !== 'curious') {
+      // Babble: press-response, current behaviour.
+      await speakAndShow();
+      return;
+    }
+
+    // Curious: defer the speak/longpress decision to release/timeout.
+    lpArmed = true;
+    lpFired = false;
+    lpStartX = e.clientX;
+    lpStartY = e.clientY;
+    lpTimer = setTimeout(() => {
+      if (!lpArmed) return;
+      lpArmed = false;
+      lpFired = true;
+      lpTimer = null;
+      void openCuriousPrompt();
+    }, LONGPRESS_MS);
+  });
+
+  window.addEventListener('pointerup', async () => {
+    if (mode !== 'idle') return;
+    if (lpFired) {
+      lpFired = false;
+      return; // longpress consumed — no tap-to-speak
+    }
+    if (!lpArmed) return;
+    clearLongpress();
+    if (bubble.isVisible() || generating) return;
     await speakAndShow();
   });
 
@@ -119,6 +202,16 @@ async function boot() {
   let lastT = performance.now();
   window.addEventListener('pointermove', (e) => {
     if (mode === 'birth') return;
+
+    // Cancel longpress if the cursor wanders past tolerance — the user is
+    // petting (drag-over-sprout), not pressing-and-holding.
+    if (lpArmed) {
+      const dx = e.clientX - lpStartX;
+      const dy = e.clientY - lpStartY;
+      if (dx * dx + dy * dy > LONGPRESS_TOLERANCE_PX * LONGPRESS_TOLERANCE_PX) {
+        clearLongpress();
+      }
+    }
 
     // While a mouse button is held over our window (e.buttons !== 0), the user
     // is dragging — either inside our window or a drag-from-outside passing
@@ -137,11 +230,19 @@ async function boot() {
     lastT = now;
     sprout.onPointerMove(e.clientX - sprout.x, e.clientY - sprout.y, vx, dt);
 
+    // While the curious prompt is open, keep click-through off so input keeps
+    // focus regardless of cursor position.
+    if (mode === 'input') {
+      setClickThroughIfChanged(false);
+      return;
+    }
     setClickThroughIfChanged(!hitTest(e.clientX, e.clientY));
   });
   window.addEventListener('pointerleave', () => {
     if (mode === 'birth') return;
+    clearLongpress();
     sprout.onPointerLeave();
+    if (mode === 'input') return; // keep input clickable even if cursor strays
     setClickThroughIfChanged(true);
   });
 
@@ -150,7 +251,7 @@ async function boot() {
   });
   window.addEventListener('drop', async (e) => {
     e.preventDefault();
-    if (mode === 'birth') return;
+    if (mode !== 'idle') return;
     if (generating || bubble.isVisible()) return;
     const file = e.dataTransfer?.files[0];
     if (!file || !file.type.startsWith('image/')) return;
@@ -191,6 +292,15 @@ async function boot() {
       bubble.setVoice(makeVoiceProfile(bootState.nickname, bootState.mood));
     }
     runResumeScene({ sprout, activity: bootState.activity, speakAndShow });
+  }
+
+  // Stage drives long-press eligibility. Fetched once per session; flipping
+  // the env var requires a restart.
+  try {
+    stage = await window.minari.getStage();
+    console.log('[boot] stage=' + stage);
+  } catch (err) {
+    console.error('[boot] getStage failed:', err);
   }
 }
 

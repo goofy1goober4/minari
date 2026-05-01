@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
-import type { BootState } from '../shared/snapshot';
+import type { BootState, GrowthStage } from '../shared/snapshot';
 
 export interface BirthState {
   completed: boolean;
@@ -9,6 +9,12 @@ export interface BirthState {
 export interface BirthCompletion {
   nickname: string;
   firstFragment: string;
+}
+
+export interface RecentMessage {
+  role: 'user' | 'minari';
+  content: string;
+  createdAt: number;
 }
 
 contextBridge.exposeInMainWorld('minari', {
@@ -29,4 +35,10 @@ contextBridge.exposeInMainWorld('minari', {
     ipcRenderer.invoke('minari:gift-image', filePath),
   // Electron 32+ removed File.path; webUtils.getPathForFile is the replacement.
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+
+  getStage: (): Promise<GrowthStage> => ipcRenderer.invoke('minari:get-stage'),
+  converse: (text: string): Promise<string> =>
+    ipcRenderer.invoke('minari:converse', text),
+  getRecentMessages: (limit: number = 20): Promise<RecentMessage[]> =>
+    ipcRenderer.invoke('minari:get-recent-messages', limit),
 });

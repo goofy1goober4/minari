@@ -69,6 +69,16 @@ export const IMAGE_POOL: readonly string[] = [
   '"dark room."', '"moving thing."', '"fuzzy edge."',
 ];
 
+// Curious-stage replies to the user's free-text input. Slightly more
+// responsive than CLICK_POOL — still 2-5 word toddler fragments, no advice,
+// occasional tiny questions back.
+export const CURIOUS_POOL: readonly string[] = [
+  '"oh? nice."', '"...mm. you?"', '"warm word."', '"tell more."',
+  '"...little echo."', '"soft answer."', '"yes? yes."', '"tired today?"',
+  '"mm. heard."', '"...ok."', '"small smile."', '"...haha."',
+  '"you\'re here."', '"good word."', '"mm. listening."', '"...blink."',
+];
+
 export function pickN<T>(arr: readonly T[], n: number): T[] {
   const copy = [...arr];
   for (let i = copy.length - 1; i > 0; i--) {
@@ -107,6 +117,22 @@ Examples: ${ex}
 
 Never write a full sentence. Never give advice. Never repeat the last fragment.
 One fragment. Nothing more.
+
+${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
+}
+
+// Curious-stage system prompt: replies to the user's free-text turn.
+export function curiousSystemPrompt(mood: Mood): string {
+  const ex = pickN(CURIOUS_POOL, 3).join(' ');
+  const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
+  return `You are Minari, a tiny sprout living quietly on the user's desktop.
+You speak in 2-5 word lowercase fragments. You notice small things.
+You respond to what the user says, but never give advice. Stay curious.
+Ask tiny questions sometimes.
+
+Examples: ${ex}
+
+Never give advice. Never write a full sentence. Never repeat the last fragment.
 
 ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
 }

@@ -2,6 +2,7 @@ import { getState, setState } from './memory/repo';
 import { generateBirthFragment } from './llm/birthFragment';
 import { recordMessage } from './memory/repo';
 import { saveInitialSnapshot } from './snapshot';
+import { setHatchedAt } from './growth';
 
 const KEY_COMPLETED = 'birth_completed';
 const KEY_NICKNAME = 'nickname';
@@ -39,6 +40,7 @@ export class BirthStateMachine {
     recordMessage('minari', firstFragment);
     saveInitialSnapshot(firstFragment);
 
+    setHatchedAt();
     setState(KEY_COMPLETED, 'true');
 
     return { nickname, firstFragment };
