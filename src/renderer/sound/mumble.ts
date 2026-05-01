@@ -39,7 +39,7 @@ const PITCH_BAND_RANGE_HZ = 60;
 
 // Reference pitch the samples were recorded at — sets playbackRate=1.0.
 // Tune by ear: if voices sound too low, raise; too chipmunky, lower.
-const SAMPLE_REFERENCE_HZ = 120;
+const SAMPLE_REFERENCE_HZ = 100;
 
 // Tiny fade so resampled samples don't click on edges.
 const EDGE_FADE_S = 0.005;

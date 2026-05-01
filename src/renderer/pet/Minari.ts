@@ -1,10 +1,19 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite, Assets, type Texture } from 'pixi.js';
 import { POSTURE_PRESETS, type PosturePreset } from './postures';
 
 const LEAVES_Y = -41;
 const LEAF_BAND_TOP = -58;
 const LEAF_BAND_BOTTOM = -32;
 const LEAF_X_HALF = 28;
+
+// Sprite swap. The async loader hides the Graphics fallback once the texture
+// is in. Path resolves against electron-vite's publicDir (assets/), so this
+// works in dev and in the packaged build.
+const SPRITE_PATH = 'sprites/minari.png';
+export const SPRITE_HEIGHT = 135;
+// Sprite anchor is bottom-centre at body (0,0); offset down a few px so feet
+// sit *into* the shadow ellipse instead of floating above it.
+const SPRITE_BASE_Y = 10;
 
 // Per-leaf spring — underdamped for elastic pop-up.
 // C_crit = 2*sqrt(K) = 12.65 → ζ=0.40, ~25% overshoot.
@@ -26,9 +35,14 @@ const FOLD_ANGLE = 1.4;
 export class Minari extends Container {
   private body: Container;
   private shadow: Graphics;
+  // Graphics fallback — kept around in case the sprite asset is missing.
+  private fallback: Container;
+  private stem: Graphics;
   private leaves: Container;
   private leafLeft: Graphics;
   private leafRight: Graphics;
+  // Filled async by loadSprite(); when present, the fallback is hidden.
+  private sprite: Sprite | null = null;
   private t = 0;
   private nudgeT: number | null = null;
   private noticeT: number | null = null;
@@ -55,17 +69,18 @@ export class Minari extends Container {
     super();
 
     this.shadow = new Graphics()
-      .ellipse(0, 6, 30, 5)
-      .fill({ color: 0x000000, alpha: 0.08 });
+      .ellipse(0, 6, 23, 3)
+      .fill({ color: 0x000000, alpha: 0.10 });
     this.addChild(this.shadow);
 
     this.body = new Container();
+    this.fallback = new Container();
 
-    const stem = new Graphics()
+    this.stem = new Graphics()
       .moveTo(0, 0)
       .bezierCurveTo(4, -15, -4, -29, 0, -41)
       .stroke({ width: 3.5, color: 0x7a9a65, cap: 'round' });
-    this.body.addChild(stem);
+    this.fallback.addChild(this.stem);
 
     this.leaves = new Container();
     this.leaves.y = LEAVES_Y;
@@ -83,9 +98,43 @@ export class Minari extends Container {
       .closePath()
       .fill(0x8fb36d);
     this.leaves.addChild(this.leafLeft, this.leafRight);
+    this.fallback.addChild(this.leaves);
 
-    this.body.addChild(this.leaves);
+    this.body.addChild(this.fallback);
     this.addChild(this.body);
+
+    void this.loadSprite();
+  }
+
+  // Async-load the bitmap sprout. On success, hide the Graphics fallback —
+  // breathe()/nudge()/notice()/posture transforms are applied to `body`,
+  // which contains the sprite, so all existing physics keep working.
+  // Per-leaf petting press-down and the birth-time leaf fold-in only affect
+  // the (now hidden) leaf Graphics, so they no-op in sprite mode.
+  private async loadSprite(): Promise<void> {
+    try {
+      const texture = (await Assets.load(SPRITE_PATH)) as Texture;
+      const sprite = new Sprite(texture);
+      // bottom-centre pivot so the sprite "stands" at body (0, SPRITE_BASE_Y),
+      // a few px into the shadow ellipse rather than floating above it.
+      sprite.anchor.set(0.5, 1);
+      sprite.y = SPRITE_BASE_Y;
+      const scale = SPRITE_HEIGHT / texture.height;
+      sprite.scale.set(scale);
+      this.fallback.visible = false;
+      this.body.addChild(sprite);
+      this.sprite = sprite;
+      console.log(
+        '[minari] sprite loaded ' +
+          texture.width +
+          'x' +
+          texture.height +
+          ' → render scale=' +
+          scale.toFixed(3),
+      );
+    } catch (err) {
+      console.error('[minari] sprite load failed, keeping fallback:', err);
+    }
   }
 
   nudge() {
@@ -186,10 +235,20 @@ export class Minari extends Container {
     const leaf = this.leafProgress;
     const leafVisible = Math.max(0, Math.min(1, leaf));
 
-    // Stem extends in Y as it grows; X stays at full width so the stem stays
-    // a thin line, not a uniform scale-up dot.
-    this.body.scale.y = (1 + phase * 0.03) * stem;
-    this.body.scale.x = 1 - phase * 0.015;
+    if (this.sprite) {
+      // Sprite mode: subtle uniform pulse + tiny vertical bob (no x/y split,
+      // so the sprite doesn't read as "stretching upward"). Scale.y is still
+      // multiplied by stem so the birth grow-from-ground animation holds.
+      const pulse = 1 + phase * 0.01;
+      this.body.scale.x = pulse;
+      this.body.scale.y = pulse * stem;
+      this.body.position.y = phase * stem * 1.0;
+    } else {
+      // Graphics fallback: legacy stem-stretch breathing.
+      this.body.scale.y = (1 + phase * 0.03) * stem;
+      this.body.scale.x = 1 - phase * 0.015;
+      this.body.position.y = 0;
+    }
     this.body.alpha = stem;
     this.shadow.alpha = stem;
     this.body.rotation =

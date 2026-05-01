@@ -196,7 +196,7 @@ function injectStylesOnce() {
     .minari-curious {
       position: fixed;
       left: 50%;
-      bottom: 12px;
+      bottom: 40px;
       transform: translateX(-50%) translateY(8px);
       opacity: 0;
       transition: opacity 200ms ease-out, transform 200ms ease-out;

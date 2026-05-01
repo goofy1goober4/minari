@@ -1,5 +1,5 @@
 import { Application } from 'pixi.js';
-import { Minari } from './pet/Minari';
+import { Minari, SPRITE_HEIGHT } from './pet/Minari';
 import { Bubble } from './ui/Bubble';
 import { CuriousPrompt } from './ui/CuriousPrompt';
 import { runBirthScene } from './birth/runBirthScene';
@@ -7,8 +7,10 @@ import { runResumeScene } from './resume/runResumeScene';
 import { makeVoiceProfile, primeAudio } from './sound/mumble';
 import type { GrowthStage } from '../shared/snapshot';
 
-const SPROUT_HIT_HALF_W = 30;
-const SPROUT_HIT_TOP = -62;
+// Hit region tracks the rendered sprite bounds: ~66 px wide (401 × 0.164),
+// SPRITE_HEIGHT tall, anchored at the sprout origin with a small margin.
+const SPROUT_HIT_HALF_W = 35;
+const SPROUT_HIT_TOP = -SPRITE_HEIGHT + 8;
 const SPROUT_HIT_BOTTOM = 14;
 
 const LONGPRESS_MS = 500;
@@ -35,7 +37,9 @@ async function boot() {
 
   const bubble = new Bubble();
   bubble.x = sprout.x;
-  bubble.y = sprout.y - 70;
+  // Bubble pivots on its bottom edge; sit it just above the sprite top with
+  // a small breathing-room gap.
+  bubble.y = sprout.y - SPRITE_HEIGHT + 2;
   app.stage.addChild(bubble);
 
   let generating = false;
