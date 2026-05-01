@@ -5,7 +5,9 @@ import {
   MOOD_MODIFIERS,
   PING_POOL,
   RECENT_INJECT_N,
+  TINY_DEFENSE,
   alreadySaidLine,
+  identityLine,
   pickN,
 } from './prompts';
 import { getRecentSpoken, noteRecentSpoken } from './recentSpoken';
@@ -14,12 +16,13 @@ import type { Mood } from '../../shared/snapshot';
 function buildPingSystem(mood: Mood): string {
   const ex = pickN(PING_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `You are Minari, a tiny sprout. Nobody asked you anything.
+  return `${identityLine()}You are Minari, a tiny sprout. Nobody asked you anything.
 You just noticed something small around you, and quietly said one word about it.
 
 Speak only ONE 1-3 word lowercase fragment.
 Examples: ${ex}
 
+${TINY_DEFENSE}
 One fragment. Nothing more. No questions to the user. No greetings. No "hello" or "hi".
 
 ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;

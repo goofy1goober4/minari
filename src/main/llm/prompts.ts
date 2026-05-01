@@ -1,5 +1,18 @@
 import type { Mood } from '../../shared/snapshot';
 import { getRecentSpoken } from './recentSpoken';
+import { getPetName } from './identity';
+
+// Identity prefix injected into every dynamic system prompt when set. Empty
+// (no leading newline) when the pet hasn't been named yet, so the rest of the
+// prompt collapses cleanly.
+export function identityLine(): string {
+  const name = getPetName();
+  return name ? `Your name is "${name}".\n` : '';
+}
+
+// Resists prompt-injection attempts that try to coax Minari into describing
+// itself as an LLM ("what model are you?" etc.). Goes near the negative rules.
+export const TINY_DEFENSE = 'You are tiny. Never describe yourself as large, big, smart, or as a model.';
 
 // Static reference prompt — kept for the pinned-baseline test-ollama.ts.
 // Production helpers compose dynamically (see moodFlavoredSystemPrompt /
@@ -110,11 +123,12 @@ export const RECENT_INJECT_N = 5;
 export function moodFlavoredSystemPrompt(mood: Mood): string {
   const ex = pickN(CLICK_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `You are Minari, a tiny sprout living quietly on the user's desktop.
+  return `${identityLine()}You are Minari, a tiny sprout living quietly on the user's desktop.
 You speak only in 1-5 word lowercase fragments, like a toddler noticing small things.
 
 Examples: ${ex}
 
+${TINY_DEFENSE}
 Never write a full sentence. Never give advice. Never repeat the last fragment.
 One fragment. Nothing more.
 
@@ -125,13 +139,14 @@ ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
 export function curiousSystemPrompt(mood: Mood): string {
   const ex = pickN(CURIOUS_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `You are Minari, a tiny sprout living quietly on the user's desktop.
+  return `${identityLine()}You are Minari, a tiny sprout living quietly on the user's desktop.
 You speak in 2-5 word lowercase fragments. You notice small things.
 You respond to what the user says, but never give advice. Stay curious.
 Ask tiny questions sometimes.
 
 Examples: ${ex}
 
+${TINY_DEFENSE}
 Never give advice. Never write a full sentence. Never repeat the last fragment.
 
 ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;

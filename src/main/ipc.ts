@@ -31,14 +31,17 @@ export function registerIpc() {
     return birth.getState();
   });
 
-  ipcMain.handle('minari:complete-birth', async (_event, rawNickname: string) => {
-    try {
-      return await birth.completeBirth(rawNickname);
-    } catch (err) {
-      console.error('[minari:complete-birth] failed:', err);
-      throw err;
-    }
-  });
+  ipcMain.handle(
+    'minari:complete-birth',
+    async (_event, rawNickname: string, rawPetName: string) => {
+      try {
+        return await birth.completeBirth(rawNickname, rawPetName);
+      } catch (err) {
+        console.error('[minari:complete-birth] failed:', err);
+        throw err;
+      }
+    },
+  );
 
   ipcMain.handle('minari:get-boot-state', (): BootState => {
     const computed = computeBootState();

@@ -60,18 +60,31 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
 
   await delay(POST_GERMINATE_BEAT_MS);
 
-  // Nickname overlay needs real cursor + keyboard, so disable click-through.
+  // Nickname overlays need real cursor + keyboard, so disable click-through.
   window.minari.setClickThrough(false);
 
-  const prompt = new NicknamePrompt();
-  prompt.mount();
-  const nickname = await prompt.awaitInput();
-  prompt.setBusy(true);
+  // Q1 — what should I (Minari, the toddler-sprout) call you?
+  const userPrompt = new NicknamePrompt({
+    question: 'you... name?',
+    placeholder: '...',
+  });
+  userPrompt.mount();
+  const nickname = await userPrompt.awaitInput();
+  await userPrompt.dismiss();
+
+  // Q2 — what should you (the human) call me?
+  const petPrompt = new NicknamePrompt({
+    question: 'me... name?',
+    placeholder: '...',
+  });
+  petPrompt.mount();
+  const petName = await petPrompt.awaitInput();
+  petPrompt.setBusy(true);
 
   let firstFragment: string;
   let resolvedNickname = nickname;
   try {
-    const result = await window.minari.completeBirth(nickname);
+    const result = await window.minari.completeBirth(nickname, petName);
     firstFragment = result.firstFragment;
     resolvedNickname = result.nickname;
   } catch (err) {
@@ -80,7 +93,7 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
   }
 
   bubble.setVoice(makeVoiceProfile(resolvedNickname, 'calm'));
-  await prompt.dismiss();
+  await petPrompt.dismiss();
   bubble.show(firstFragment);
 }
 

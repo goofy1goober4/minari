@@ -1,7 +1,12 @@
-const QUESTION = '뭐라고 부르면 돼?';
-const PLACEHOLDER = '이름을 적어줘';
-const SUBMIT_LABEL = '응';
-const MAX_LEN = 20;
+const DEFAULT_MAX_LEN = 20;
+const DEFAULT_SUBMIT_LABEL = '응';
+
+export interface NicknamePromptOptions {
+  question: string;
+  placeholder: string;
+  submitLabel?: string;
+  maxLen?: number;
+}
 
 export class NicknamePrompt {
   readonly el: HTMLDivElement;
@@ -11,7 +16,10 @@ export class NicknamePrompt {
   private submitHandler: () => void;
   private keyHandler: (e: KeyboardEvent) => void;
 
-  constructor() {
+  constructor(options: NicknamePromptOptions) {
+    const maxLen = options.maxLen ?? DEFAULT_MAX_LEN;
+    const submitLabel = options.submitLabel ?? DEFAULT_SUBMIT_LABEL;
+
     this.el = document.createElement('div');
     this.el.className = 'minari-nickname-prompt';
     this.el.innerHTML = `
@@ -21,7 +29,7 @@ export class NicknamePrompt {
           <input
             type="text"
             class="minari-nickname-input"
-            maxlength="${MAX_LEN}"
+            maxlength="${maxLen}"
             autocomplete="off"
             spellcheck="false"
           />
@@ -36,9 +44,9 @@ export class NicknamePrompt {
     this.input = this.el.querySelector('input') as HTMLInputElement;
     this.button = this.el.querySelector('button') as HTMLButtonElement;
 
-    question.textContent = QUESTION;
-    this.input.placeholder = PLACEHOLDER;
-    this.button.textContent = SUBMIT_LABEL;
+    question.textContent = options.question;
+    this.input.placeholder = options.placeholder;
+    this.button.textContent = submitLabel;
     this.button.disabled = true;
 
     this.input.addEventListener('input', () => {

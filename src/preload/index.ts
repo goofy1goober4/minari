@@ -4,10 +4,12 @@ import type { BootState, GrowthStage } from '../shared/snapshot';
 export interface BirthState {
   completed: boolean;
   nickname: string | null;
+  petName: string | null;
 }
 
 export interface BirthCompletion {
   nickname: string;
+  petName: string;
   firstFragment: string;
 }
 
@@ -23,8 +25,8 @@ contextBridge.exposeInMainWorld('minari', {
     ipcRenderer.send('minari:set-click-through', passThrough);
   },
   getBirthState: (): Promise<BirthState> => ipcRenderer.invoke('minari:get-birth-state'),
-  completeBirth: (nickname: string): Promise<BirthCompletion> =>
-    ipcRenderer.invoke('minari:complete-birth', nickname),
+  completeBirth: (nickname: string, petName: string): Promise<BirthCompletion> =>
+    ipcRenderer.invoke('minari:complete-birth', nickname, petName),
   getBootState: (): Promise<BootState> => ipcRenderer.invoke('minari:get-boot-state'),
   onPing: (callback: (fragment: string) => void): (() => void) => {
     const listener = (_event: IpcRendererEvent, fragment: string) => callback(fragment);

@@ -25,6 +25,8 @@ export class CuriousPrompt {
   private resolver: ((value: string | null) => void) | null = null;
   private historyOpen = false;
   private keyHandler: (e: KeyboardEvent) => void;
+  private outsideHandler: (e: PointerEvent) => void;
+  private blurHandler: () => void;
 
   constructor(deps: CuriousPromptDeps) {
     this.deps = deps;
@@ -74,6 +76,21 @@ export class CuriousPrompt {
       }
     };
     this.input.addEventListener('keydown', this.keyHandler);
+
+    // Click outside the card (but inside our window) → cancel.
+    this.outsideHandler = (e: PointerEvent) => {
+      if (!this.resolver) return;
+      const target = e.target as Node | null;
+      if (target && this.el.contains(target)) return;
+      this.cancel();
+    };
+
+    // Click outside our window entirely → the BrowserWindow loses OS focus
+    // and the renderer fires a DOM blur. Treat it the same as outside-click.
+    this.blurHandler = () => {
+      if (!this.resolver) return;
+      this.cancel();
+    };
   }
 
   mount(parent: HTMLElement = document.body) {
@@ -81,6 +98,10 @@ export class CuriousPrompt {
     requestAnimationFrame(() => {
       this.el.classList.add('is-visible');
       this.input.focus();
+      // Attach after the same-frame mount so the long-press's pointerup
+      // doesn't immediately dismiss us.
+      document.addEventListener('pointerdown', this.outsideHandler);
+      window.addEventListener('blur', this.blurHandler);
     });
   }
 
@@ -96,6 +117,8 @@ export class CuriousPrompt {
   }
 
   async dismiss(): Promise<void> {
+    document.removeEventListener('pointerdown', this.outsideHandler);
+    window.removeEventListener('blur', this.blurHandler);
     this.el.classList.remove('is-visible');
     await new Promise((r) => setTimeout(r, 200));
     this.el.remove();

@@ -1,7 +1,13 @@
 import { callOllama } from './ollama';
 import { filterGuardrails } from './guardrails';
 import { MODEL, effectiveTemperature } from './model';
-import { BIRTH_POOL, RECENT_INJECT_N, alreadySaidLine, pickN } from './prompts';
+import {
+  BIRTH_POOL,
+  RECENT_INJECT_N,
+  TINY_DEFENSE,
+  alreadySaidLine,
+  pickN,
+} from './prompts';
 import { getRecentSpoken, noteRecentSpoken } from './recentSpoken';
 
 function buildBirthSystem(): string {
@@ -15,11 +21,12 @@ No greetings templates. No explanations. No full sentences.
 
 Examples: ${ex}
 
+${TINY_DEFENSE}
 One fragment. Nothing more.${tail ? '\n\n' + tail : ''}`;
 }
 
-export async function generateBirthFragment(nickname: string): Promise<string> {
-  const userMessage = `Your name is "${nickname}". Say your first word.`;
+export async function generateBirthFragment(petName: string): Promise<string> {
+  const userMessage = `Your name is "${petName}". Say your first word.`;
 
   const raw = await callOllama({
     model: MODEL,
