@@ -1,4 +1,4 @@
-import { app, type WebContents } from 'electron';
+import { app, BrowserWindow, type WebContents } from 'electron';
 import { recordMessage, getState, setState } from './memory/repo';
 import { getCurrentMood, getLastInteractionAt, noteSpoken } from './snapshot';
 import { generateNoticingFragment } from './llm/pingFragment';
@@ -8,6 +8,10 @@ import {
   evaluateSuppression,
   type SuppressReason,
 } from '../shared/softPingSuppression';
+import { getCurrentStage } from './growth';
+import { getOldestUnknown, markCurious } from './wordLearning/repo';
+import { enterTeachingMode } from './wordLearning/teachingState';
+import { generateCuriosityQuestion } from './wordLearning/keywords';
 
 // Dev mode shrinks every gate so a session can actually exercise pings.
 // Quiet hours are disabled in dev (QUIET_END_HOUR=0) so 2 a.m. testing works.
@@ -18,9 +22,16 @@ const SUPPRESSION_CONFIG = IS_DEV ? DEV_SUPPRESSION_CONFIG : PROD_SUPPRESSION_CO
 const TICK_MS = IS_DEV ? 30 * 1000 : 5 * 60 * 1000;
 const FIRE_PROB = IS_DEV ? 0.5 : 0.18;
 
+// word_curiosity has its own clock independent of the noticing-ping rhythm:
+// after an unknown word has aged this long Minari is allowed to ask about it,
+// and once asked the same channel cools down before another word can fire.
+const CURIOSITY_DELAY_S = IS_DEV ? 30 : 3 * 86400;
+const CURIOSITY_COOLDOWN_MS = IS_DEV ? 60 * 1000 : 86400 * 1000;
+
 const KEY_PINGS_TODAY = 'pings_today';
 const KEY_PING_DAY = 'ping_day';
 const KEY_LAST_PING_AT = 'last_ping_at';
+const KEY_LAST_WORD_CURIOSITY_AT = 'last_word_curiosity_at';
 
 let timer: NodeJS.Timeout | null = null;
 let bootAt = 0;
@@ -65,7 +76,11 @@ export function stopSoftPingScheduler() {
 async function tick() {
   const now = Date.now();
   const reason = checkSuppression(now);
-  if (reason) {
+  // daily-cap only gates noticing pings — word_curiosity has its own clock
+  // and shouldn't get starved by a noisy afternoon. Other suppression
+  // reasons (boot-grace, quiet-hours, interaction-cooldown, min-spacing)
+  // still block both.
+  if (reason && reason !== 'daily-cap') {
     if (reason !== lastLoggedSuppression) {
       console.log('[soft-ping] tick suppressed: ' + reason);
       lastLoggedSuppression = reason;
@@ -73,11 +88,70 @@ async function tick() {
     return;
   }
   lastLoggedSuppression = null;
+  // word_curiosity is deterministic — if conditions are met, fire it instead
+  // of the random noticing ping. Only one outbound bubble per tick.
+  if (await tryEmitWordCuriosity(now)) return;
+  if (reason === 'daily-cap') {
+    if (lastLoggedSuppression !== 'daily-cap') {
+      console.log('[soft-ping] tick suppressed: daily-cap (noticing only)');
+      lastLoggedSuppression = 'daily-cap';
+    }
+    return;
+  }
   if (Math.random() >= FIRE_PROB) {
     console.log('[soft-ping] tick eligible, dice missed');
     return;
   }
   await emitPing(now);
+}
+
+async function tryEmitWordCuriosity(now: number): Promise<boolean> {
+  if (getCurrentStage() !== 'curious') return false;
+
+  const lastAsk = Number(getState(KEY_LAST_WORD_CURIOSITY_AT) || 0);
+  if (now - lastAsk < CURIOSITY_COOLDOWN_MS) return false;
+
+  const word = getOldestUnknown(CURIOSITY_DELAY_S);
+  if (!word) return false;
+
+  const wc = getWebContents?.();
+  if (!wc || wc.isDestroyed()) {
+    console.log('[soft-ping] word_curiosity: no webContents → drop');
+    return false;
+  }
+
+  const question = generateCuriosityQuestion(word.babyDescription);
+  markCurious(word.id);
+  enterTeachingMode(word.id);
+  recordMessage('minari', question);
+  noteSpoken(question);
+  // word_curiosity has its own clock (KEY_LAST_WORD_CURIOSITY_AT) and is a
+  // teaching channel, not a noticing fragment — keep it out of the noticing
+  // ping budget (pings_today) so a chatty afternoon of soft pings never
+  // blocks a learning moment. We still bump last_ping_at so this and the
+  // next noticing ping respect min-spacing against each other.
+  setState(KEY_LAST_WORD_CURIOSITY_AT, String(now));
+  setState(KEY_LAST_PING_AT, String(now));
+
+  console.log(
+    '[soft-ping] word_curiosity emit: word_id=' +
+      word.id +
+      ' desc=' +
+      JSON.stringify(word.babyDescription) +
+      ' question=' +
+      JSON.stringify(question),
+  );
+  // Forced-open input needs OS focus, otherwise the Minari window stays
+  // backgrounded and the prompt's blur handler trips immediately. Bring
+  // app + window to the front before dispatching the renderer event.
+  const win = BrowserWindow.fromWebContents(wc);
+  if (win && !win.isDestroyed()) {
+    if (!win.isVisible()) win.show();
+    win.focus();
+  }
+  if (process.platform === 'darwin') app.focus({ steal: true });
+  wc.send('minari:word-question', { wordId: word.id, question });
+  return true;
 }
 
 function checkSuppression(now: number): SuppressReason | null {

@@ -18,6 +18,9 @@ import {
   type SuppressionConfig,
 } from '../src/shared/softPingSuppression.ts';
 import { filterGuardrails } from '../src/main/llm/guardrails.ts';
+import { findBestMatch, type MatchableWord } from '../src/main/wordLearning/match.ts';
+import { extractKeywords, generateCuriosityQuestion } from '../src/main/wordLearning/keywords.ts';
+import { REACTIONS, isReactionKind, pickReaction } from '../src/main/alarm/reactions.ts';
 
 type Result = { name: string; ok: boolean; detail?: string };
 const results: Result[] = [];
@@ -217,6 +220,162 @@ check(
 // Empty / whitespace falls back.
 eq('empty → fallback', filterGuardrails(''), '...');
 eq('whitespace → fallback', filterGuardrails('   '), '...');
+
+// ─────────────────────────────────────────────────────────────────────
+// Test 5: word-learning keyword matcher (image gift → match vs new unknown)
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[test 5] word-learning keyword matcher');
+
+const pizza1: MatchableWord = {
+  id: 1,
+  learnedName: 'pizza',
+  visionRaw: 'red round cheese circles food',
+};
+const pizza2: MatchableWord = {
+  id: 2,
+  learnedName: 'pizza',
+  visionRaw: 'round cheese red flat circles',
+};
+const cat: MatchableWord = {
+  id: 3,
+  learnedName: 'cat',
+  visionRaw: 'fuzzy small grey animal',
+};
+
+// Same kind, ≥50% overlap → match.
+{
+  const m = findBestMatch('round red cheese flat circles', [pizza1, cat]);
+  eq('pizza-like description matches pizza row', m?.learnedName ?? null, 'pizza');
+}
+
+// Best score wins when multiple candidates pass the threshold.
+{
+  const m = findBestMatch('round red cheese flat circles food', [pizza1, pizza2, cat]);
+  check('best of two pizzas chosen', m !== null && m.learnedName === 'pizza', 'got ' + JSON.stringify(m));
+}
+
+// Cat description should not match pizza.
+{
+  const m = findBestMatch('fuzzy grey animal small', [pizza1, cat]);
+  eq('cat-like description matches cat row', m?.learnedName ?? null, 'cat');
+}
+
+// Totally unrelated description → no match (new unknown will be inserted).
+{
+  const m = findBestMatch('blue sky cloud bright', [pizza1, cat]);
+  eq('unrelated description → null', m, null);
+}
+
+// Empty / null vision_raw rows are skipped, not crashed on.
+{
+  const m = findBestMatch(
+    'round red cheese',
+    [{ id: 99, learnedName: 'mystery', visionRaw: null }, pizza1],
+  );
+  eq('null vision_raw skipped', m?.learnedName ?? null, 'pizza');
+}
+
+// Empty input → null.
+eq('empty input → null', findBestMatch('', [pizza1]), null);
+
+// Threshold is 0.34, scored against the smaller of (old, new) tokens. E2B
+// vision drifts in adjectives across photos of the same thing, so a single
+// shared noun in an otherwise-different caption should still pull the row.
+{
+  // "warm cheese circle" vs "orange cheese slices" — only "cheese" overlaps.
+  // Score = 1/3 ≈ 0.33 ⇒ misses 0.34 by a hair. Add a duplicate-token caption
+  // and the same shared noun + size ratio passes.
+  const learned: MatchableWord = {
+    id: 10,
+    learnedName: 'pizza',
+    visionRaw: 'warm cheese circle',
+  };
+  const m = findBestMatch('orange cheese slice', [learned]);
+  eq('one shared noun in 3-token caption matches at 0.34', m?.learnedName ?? null, 'pizza');
+}
+
+// One token shared, but old caption is 5 tokens and new is 5 tokens; with
+// min(old,new)=5 the score is 1/5 = 0.2 → still below 0.34, so disjoint
+// captions don't accidentally fuse.
+{
+  const learned: MatchableWord = {
+    id: 11,
+    learnedName: 'pizza',
+    visionRaw: 'warm cheese flat round circle',
+  };
+  const m = findBestMatch('blue large soft fuzzy circle', [learned]);
+  eq('1/5 overlap stays below threshold', m, null);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Test 6: curiosity question template (keywords + safe fallback)
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[test 6] curiosity question template');
+
+eq('extractKeywords drops stopwords + punctuation',
+  extractKeywords('oh! red cheese circles.', 3),
+  'red cheese circles');
+eq('extractKeywords caps at max', extractKeywords('one two three four five', 3), 'one two three');
+eq('extractKeywords filters single-letter tokens', extractKeywords('a b cat dog', 3), 'cat dog');
+
+// Question templates always interpolate into a non-empty string.
+{
+  const q = generateCuriosityQuestion('red cheese circles');
+  check('question contains keywords', q.includes('red') || q.includes('cheese') || q.includes('circles'),
+    'got ' + JSON.stringify(q));
+  check('question is non-empty', q.trim().length > 0, JSON.stringify(q));
+}
+
+// Even when extraction yields nothing the template falls back to "that..."
+// instead of producing literal "{keywords}" leakage.
+{
+  const q = generateCuriosityQuestion('a the it');
+  check('empty-keyword fallback has no template leakage', !q.includes('{keywords}'), JSON.stringify(q));
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Test 7: alarm reaction selector (random + forced)
+// ─────────────────────────────────────────────────────────────────────
+console.log('\n[test 7] alarm reaction selector');
+
+eq('reaction set has 4 kinds', REACTIONS.length, 4);
+eq('startled_jump present', REACTIONS.some((r) => r.kind === 'startled_jump'), true);
+eq('annoyed_glare present', REACTIONS.some((r) => r.kind === 'annoyed_glare'), true);
+eq('done text is "...done."', REACTIONS.find((r) => r.kind === 'done')?.text ?? null, '...done.');
+eq('loud text is "...loud."', REACTIONS.find((r) => r.kind === 'loud')?.text ?? null, '...loud.');
+
+eq('isReactionKind accepts loud', isReactionKind('loud'), true);
+eq('isReactionKind rejects junk', isReactionKind('explode'), false);
+eq('isReactionKind rejects non-string', isReactionKind(42), false);
+
+// Forced selection: hackathon demo path needs "...loud." to be deterministic.
+eq('force=loud always wins', pickReaction('loud').text, '...loud.');
+eq('force=startled_jump always wins', pickReaction('startled_jump').kind, 'startled_jump');
+
+// Bad force falls back to random (using a seeded rand so the test is stable).
+{
+  // @ts-expect-error invalid force at runtime
+  const r = pickReaction('does_not_exist', () => 0);
+  eq('invalid force → fallback random[0]', r.kind, REACTIONS[0].kind);
+}
+
+// rand() returning ~1 should still index in-range (no off-by-one to length).
+eq('rand=0.999... → last reaction',
+  pickReaction(null, () => 0.9999999).kind,
+  REACTIONS[REACTIONS.length - 1].kind);
+eq('rand=0 → first reaction', pickReaction(null, () => 0).kind, REACTIONS[0].kind);
+
+// Even distribution sanity: with a deterministic round-robin rand we should
+// hit every reaction at least once across 4 calls.
+{
+  let i = 0;
+  const seen = new Set<string>();
+  for (let n = 0; n < REACTIONS.length; n++) {
+    const fakeRand = () => i++ / REACTIONS.length;
+    seen.add(pickReaction(null, fakeRand).kind);
+  }
+  eq('all reactions reachable via rand', seen.size, REACTIONS.length);
+}
 
 // ─────────────────────────────────────────────────────────────────────
 // Report

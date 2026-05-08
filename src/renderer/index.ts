@@ -19,6 +19,11 @@ const LONGPRESS_TOLERANCE_PX = 6;
 type Mode = 'birth' | 'idle' | 'input';
 
 async function boot() {
+  // Window opts include autoplayPolicy: 'no-user-gesture-required', so we
+  // can spin up the AudioContext + sample load at boot. Without this the
+  // first ping/alarm fires silently because nobody clicked the sprout yet.
+  primeAudio();
+
   const app = new Application();
   await app.init({
     backgroundAlpha: 0,
@@ -123,32 +128,51 @@ async function boot() {
     }
   };
 
-  const openCuriousPrompt = async () => {
-    if (mode !== 'idle') return;
-    mode = 'input';
-    setClickThroughIfChanged(false);
+  // Inner shared by both curious entry points. Tracks the converse result so
+  // teaching's "pizza?" can re-open the input without us tracking it twice.
+  const runCuriousTurn = async (logTag: string) => {
     const prompt = new CuriousPrompt({
       fetchHistory: () => window.minari.getRecentMessages(20),
     });
     prompt.mount();
-
     const text = await prompt.awaitSubmit();
     if (text === null) {
       await prompt.dismiss();
       mode = 'idle';
-      return;
+      return { dismissed: true as const };
     }
     prompt.setBusy(true);
     sprout.nudge();
-    let fragment = '...';
+    let result: { text: string; expectFollowup?: boolean } = { text: '...' };
     try {
-      fragment = await window.minari.converse(text);
+      result = await window.minari.converse(text);
     } catch (err) {
-      console.error('[curious] converse failed:', err);
+      console.error('[' + logTag + '] converse failed:', err);
     }
     await prompt.dismiss();
     mode = 'idle';
-    bubble.show(fragment);
+    bubble.show(result.text);
+    return { dismissed: false as const, expectFollowup: !!result.expectFollowup };
+  };
+
+  const openCuriousPrompt = async () => {
+    if (mode !== 'idle') return;
+    mode = 'input';
+    setClickThroughIfChanged(false);
+    const r = await runCuriousTurn('curious');
+    if (!r.dismissed && r.expectFollowup) void openCuriousPromptForced();
+  };
+
+  // Force-open the curious prompt when Minari herself starts the turn — the
+  // bubble pops with the question and the input slides up beneath it so the
+  // user can answer immediately.
+  const openCuriousPromptForced = async () => {
+    if (mode === 'birth' || mode === 'input') return;
+    if (generating) return;
+    mode = 'input';
+    setClickThroughIfChanged(false);
+    const r = await runCuriousTurn('word-question');
+    if (!r.dismissed && r.expectFollowup) void openCuriousPromptForced();
   };
 
   // Soft pings: dropped during birth, dropped while curious input is open,
@@ -175,6 +199,51 @@ async function boot() {
     console.log('[ping] shown');
   });
   console.log('[boot] onPing handler registered');
+
+  window.minari.onAlarm((payload) => {
+    console.log(
+      '[alarm] received: ' +
+        JSON.stringify(payload) +
+        ' mode=' + mode +
+        ' bubbleVisible=' + bubble.isVisible(),
+    );
+    // Birth scene is non-interruptible — the sprout-grow / nickname beats
+    // would visually fight with a startle wobble. Drop the bubble; the DB
+    // row was already written in main, so it's not lost.
+    if (mode === 'birth') {
+      console.log('[alarm] dropped: birth in progress');
+      return;
+    }
+    // Alarm is interrupt-y by nature — preempt any existing bubble so the
+    // user sees Minari react in the moment.
+    if (bubble.isVisible()) bubble.dismiss();
+    if (payload.kind === 'startled_jump') {
+      sprout.startle();
+    } else {
+      sprout.nudge();
+    }
+    bubble.show(payload.text);
+  });
+
+  window.minari.onWordQuestion((payload) => {
+    console.log(
+      '[word-question] received: ' +
+        JSON.stringify(payload) +
+        ' mode=' + mode +
+        ' generating=' + generating,
+    );
+    if (mode === 'birth' || mode === 'input') {
+      console.log('[word-question] dropped: mode=' + mode);
+      return;
+    }
+    if (generating) {
+      console.log('[word-question] dropped: busy');
+      return;
+    }
+    sprout.nudge();
+    bubble.show(payload.question);
+    void openCuriousPromptForced();
+  });
 
   app.ticker.add((ticker) => {
     sprout.breathe(ticker.deltaMS);

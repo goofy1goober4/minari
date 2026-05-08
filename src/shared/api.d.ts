@@ -19,11 +19,17 @@ declare global {
       ): Promise<{ nickname: string; petName: string; firstFragment: string }>;
       getBootState(): Promise<BootState>;
       onPing(callback: (fragment: string) => void): () => void;
+      onWordQuestion(
+        callback: (payload: { wordId: number; question: string }) => void,
+      ): () => void;
+      onAlarm(
+        callback: (payload: { kind: string; text: string; mood: string }) => void,
+      ): () => void;
       giftImage(filePath: string): Promise<string>;
       getPathForFile(file: File): string;
 
       getStage(): Promise<GrowthStage>;
-      converse(text: string): Promise<string>;
+      converse(text: string): Promise<{ text: string; expectFollowup?: boolean }>;
       getRecentMessages(limit?: number): Promise<RecentMessage[]>;
     };
   }

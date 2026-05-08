@@ -51,6 +51,22 @@ CREATE TABLE IF NOT EXISTS soft_pings (
   created_at INTEGER NOT NULL,
   dismissed_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS learned_words (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  baby_description TEXT NOT NULL,
+  learned_name TEXT,
+  status TEXT NOT NULL DEFAULT 'unknown'
+    CHECK(status IN ('unknown', 'curious', 'learned')),
+  image_path TEXT,
+  vision_raw TEXT,
+  first_seen_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  learned_at INTEGER,
+  use_count INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_learned_status ON learned_words(status);
+CREATE INDEX IF NOT EXISTS idx_learned_name ON learned_words(learned_name);
 `;
 
 export function openDb(): Database.Database {

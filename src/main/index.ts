@@ -5,6 +5,7 @@ import { getState, setState } from './memory/repo';
 import { registerIpc } from './ipc';
 import { flushSnapshot } from './snapshot';
 import { startSoftPingScheduler, stopSoftPingScheduler } from './softPing';
+import { startAlarmServer, stopAlarmServer } from './alarm/server';
 import { maybeWriteDiary } from './diary';
 import { setPetName, setUserNickname } from './llm/identity';
 
@@ -21,6 +22,7 @@ app.whenReady().then(() => {
   registerIpc();
   createPetWindow();
   startSoftPingScheduler(getCurrentWebContents);
+  startAlarmServer(getCurrentWebContents);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createPetWindow();
@@ -57,6 +59,7 @@ app.on('before-quit', async (event) => {
   event.preventDefault();
   // Stop the scheduler now so a ping can't race the diary write.
   stopSoftPingScheduler();
+  stopAlarmServer();
   try {
     await maybeWriteDiary();
   } catch (err) {
@@ -69,6 +72,7 @@ app.on('before-quit', async (event) => {
 
 app.on('will-quit', () => {
   stopSoftPingScheduler();
+  stopAlarmServer();
   try {
     flushSnapshot();
   } catch (err) {

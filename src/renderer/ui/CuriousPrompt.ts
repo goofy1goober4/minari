@@ -6,6 +6,11 @@
 const PLACEHOLDER = '...';
 const MAX_LEN = 200;
 const HISTORY_LIMIT = 16;
+// Outside/blur cancellation only arms after this window. When word-question
+// auto-opens the prompt the OS may not yet have given the Minari window
+// focus, so the very first blur tick would otherwise dismiss us before the
+// user can type.
+const ARM_GRACE_MS = 700;
 
 interface HistoryRow {
   role: 'user' | 'minari';
@@ -27,6 +32,8 @@ export class CuriousPrompt {
   private keyHandler: (e: KeyboardEvent) => void;
   private outsideHandler: (e: PointerEvent) => void;
   private blurHandler: () => void;
+  private armTimer: ReturnType<typeof setTimeout> | null = null;
+  private armed = false;
 
   constructor(deps: CuriousPromptDeps) {
     this.deps = deps;
@@ -79,7 +86,7 @@ export class CuriousPrompt {
 
     // Click outside the card (but inside our window) → cancel.
     this.outsideHandler = (e: PointerEvent) => {
-      if (!this.resolver) return;
+      if (!this.resolver || !this.armed) return;
       const target = e.target as Node | null;
       if (target && this.el.contains(target)) return;
       this.cancel();
@@ -88,7 +95,7 @@ export class CuriousPrompt {
     // Click outside our window entirely → the BrowserWindow loses OS focus
     // and the renderer fires a DOM blur. Treat it the same as outside-click.
     this.blurHandler = () => {
-      if (!this.resolver) return;
+      if (!this.resolver || !this.armed) return;
       this.cancel();
     };
   }
@@ -98,10 +105,15 @@ export class CuriousPrompt {
     requestAnimationFrame(() => {
       this.el.classList.add('is-visible');
       this.input.focus();
-      // Attach after the same-frame mount so the long-press's pointerup
-      // doesn't immediately dismiss us.
       document.addEventListener('pointerdown', this.outsideHandler);
       window.addEventListener('blur', this.blurHandler);
+      // Arm cancel-on-outside only after a short settle window — see
+      // ARM_GRACE_MS comment.
+      this.armTimer = setTimeout(() => {
+        this.armed = true;
+        this.armTimer = null;
+        this.input.focus();
+      }, ARM_GRACE_MS);
     });
   }
 
@@ -117,6 +129,11 @@ export class CuriousPrompt {
   }
 
   async dismiss(): Promise<void> {
+    if (this.armTimer) {
+      clearTimeout(this.armTimer);
+      this.armTimer = null;
+    }
+    this.armed = false;
     document.removeEventListener('pointerdown', this.outsideHandler);
     window.removeEventListener('blur', this.blurHandler);
     this.el.classList.remove('is-visible');

@@ -36,13 +36,31 @@ contextBridge.exposeInMainWorld('minari', {
     ipcRenderer.on('minari:ping', listener);
     return () => ipcRenderer.removeListener('minari:ping', listener);
   },
+  onWordQuestion: (
+    callback: (payload: { wordId: number; question: string }) => void,
+  ): (() => void) => {
+    const listener = (_event: IpcRendererEvent, payload: { wordId: number; question: string }) =>
+      callback(payload);
+    ipcRenderer.on('minari:word-question', listener);
+    return () => ipcRenderer.removeListener('minari:word-question', listener);
+  },
+  onAlarm: (
+    callback: (payload: { kind: string; text: string; mood: string }) => void,
+  ): (() => void) => {
+    const listener = (
+      _event: IpcRendererEvent,
+      payload: { kind: string; text: string; mood: string },
+    ) => callback(payload);
+    ipcRenderer.on('minari:alarm', listener);
+    return () => ipcRenderer.removeListener('minari:alarm', listener);
+  },
   giftImage: (filePath: string): Promise<string> =>
     ipcRenderer.invoke('minari:gift-image', filePath),
   // Electron 32+ removed File.path; webUtils.getPathForFile is the replacement.
   getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 
   getStage: (): Promise<GrowthStage> => ipcRenderer.invoke('minari:get-stage'),
-  converse: (text: string): Promise<string> =>
+  converse: (text: string): Promise<{ text: string; expectFollowup?: boolean }> =>
     ipcRenderer.invoke('minari:converse', text),
   getRecentMessages: (limit: number = 20): Promise<RecentMessage[]> =>
     ipcRenderer.invoke('minari:get-recent-messages', limit),

@@ -1,11 +1,24 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { speakAsMinari } from './llm/speak';
-import { converseWithMinari } from './llm/converse';
+import { handleUserInput } from './llm/converse';
 import { BirthStateMachine } from './birth';
 import { computeBootState, setCurrent, markInteraction, noteSpoken } from './snapshot';
 import { getState, recordMessage, getRecentHistory } from './memory/repo';
 import { reactToImage, readImageAsBase64 } from './llm/imageReact';
 import { getCurrentStage } from './growth';
+import {
+  exitTeachingMode,
+  exitConfirmingMode,
+  getTeachingWordId,
+  getConfirmingWord,
+} from './wordLearning/teachingState';
+import {
+  findBestMatch,
+  insertUnknown,
+  listLearned,
+  bumpUseCount,
+  mergeVisionRaw,
+} from './wordLearning/repo';
 import type { BootState, GrowthStage } from '../shared/snapshot';
 
 export interface RecentMessage {
@@ -56,12 +69,37 @@ export function registerIpc() {
 
   ipcMain.handle('minari:gift-image', async (_event, filePath: string): Promise<string> => {
     markInteraction();
+    // Image trumps any pending teaching dialog — drop it so the next text
+    // input doesn't get hijacked by a stale word.
+    if (getTeachingWordId() !== null) exitTeachingMode();
+    if (getConfirmingWord() !== null) exitConfirmingMode();
     try {
       const base64 = await readImageAsBase64(filePath);
       console.log('[ipc] gift-image: ' + filePath + ' (' + base64.length + ' base64 chars)');
       const t0 = Date.now();
-      const fragment = await reactToImage(base64);
+      const visionRaw = await reactToImage(base64);
       const ms = Date.now() - t0;
+
+      const learned = listLearned();
+      const match = findBestMatch(visionRaw, learned);
+      let fragment: string;
+      if (match && match.learnedName) {
+        fragment = `${match.learnedName}!`;
+        bumpUseCount(match.id);
+        mergeVisionRaw(match.id, visionRaw);
+        console.log(
+          '[gift] match → id=' + match.id + ' name=' + JSON.stringify(match.learnedName),
+        );
+      } else {
+        fragment = visionRaw;
+        const id = insertUnknown({
+          babyDescription: visionRaw,
+          visionRaw,
+          imagePath: filePath,
+        });
+        console.log('[gift] new unknown → id=' + id + ' desc=' + JSON.stringify(visionRaw));
+      }
+
       recordMessage('user', '[image gift]');
       recordMessage('minari', fragment);
       noteSpoken(fragment);
@@ -78,22 +116,26 @@ export function registerIpc() {
     return stage;
   });
 
-  ipcMain.handle('minari:converse', async (_event, userText: string): Promise<string> => {
-    markInteraction();
-    try {
-      const fragment = await converseWithMinari(userText);
-      console.log(
-        '[ipc] converse: ' +
-          JSON.stringify(userText.slice(0, 80)) +
-          ' → ' +
-          JSON.stringify(fragment),
-      );
-      return fragment;
-    } catch (err) {
-      console.error('[ipc] converse failed:', err);
-      return '...';
-    }
-  });
+  ipcMain.handle(
+    'minari:converse',
+    async (_event, userText: string): Promise<{ text: string; expectFollowup?: boolean }> => {
+      markInteraction();
+      try {
+        const result = await handleUserInput(userText);
+        console.log(
+          '[ipc] converse: ' +
+            JSON.stringify(userText.slice(0, 80)) +
+            ' → ' +
+            JSON.stringify(result.text) +
+            (result.expectFollowup ? ' (expect-followup)' : ''),
+        );
+        return result;
+      } catch (err) {
+        console.error('[ipc] converse failed:', err);
+        return { text: '...' };
+      }
+    },
+  );
 
   ipcMain.handle(
     'minari:get-recent-messages',
