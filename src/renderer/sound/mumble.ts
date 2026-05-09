@@ -34,8 +34,13 @@ const SYLLABLE_OVERLAP_S = 0.007;
 
 const BASE_VOLUME = 0.7;
 
-const PITCH_BAND_LOW_HZ = 200;
+const PITCH_BAND_LOW_HZ = 280;
 const PITCH_BAND_RANGE_HZ = 60;
+
+// Global playback-rate scaler. <1 stretches each syllable (slower, softer);
+// also lowers pitch since playbackRate couples speed and pitch — the band
+// above is set high enough to compensate.
+const PLAYBACK_RATE_MULTIPLIER = 0.88;
 
 // Reference pitch the samples were recorded at — sets playbackRate=1.0.
 // Tune by ear: if voices sound too low, raise; too chipmunky, lower.
@@ -170,7 +175,7 @@ export async function playMumble(text: string, profile: VoiceProfile) {
     pitchHz += (Math.random() - 0.5) * PITCH_JITTER_HZ;
     if (profile.endRise && i === lastVoiced) pitchHz *= 1.2;
 
-    const playbackRate = pitchHz / SAMPLE_REFERENCE_HZ;
+    const playbackRate = (pitchHz / SAMPLE_REFERENCE_HZ) * PLAYBACK_RATE_MULTIPLIER;
     const dur = buf.duration / playbackRate;
 
     scheduleSample(audioCtx, t, buf, playbackRate, profile.volume);
