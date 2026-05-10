@@ -420,6 +420,7 @@ async function boot() {
     if (bootState.nickname) {
       bubble.setVoice(makeVoiceProfile(bootState.nickname, bootState.mood));
     }
+    sprout.setMood(bootState.mood);
     runResumeScene({ sprout, activity: bootState.activity, speakAndShow });
   }
 
