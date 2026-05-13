@@ -5,20 +5,22 @@ export type SpriteName =
   | 'sprout'
   | 'face_front_open'
   | 'face_front_closed'
-  | 'face_34left_open'
-  | 'face_34left_closed'
-  | 'face_34right_open'
-  | 'face_34right_closed';
+  | 'face_front_half'
+  | 'face_front_smile'
+  | 'face_front_surprise'
+  | 'face_front_tiltL'
+  | 'face_front_tiltR';
 
 const FILE_FOR: Record<SpriteName, string> = {
   body: '/sprites/body.png',
   sprout: '/sprites/sprout.png',
   face_front_open: '/sprites/face_front_open.png',
   face_front_closed: '/sprites/face_front_closed.png',
-  face_34left_open: '/sprites/face_34left_open.png',
-  face_34left_closed: '/sprites/face_34left_closed.png',
-  face_34right_open: '/sprites/face_34right_open.png',
-  face_34right_closed: '/sprites/face_34right_closed.png',
+  face_front_half: '/sprites/face_front_half.png',
+  face_front_smile: '/sprites/face_front_smile.png',
+  face_front_surprise: '/sprites/face_front_surprise.png',
+  face_front_tiltL: '/sprites/face_front_tiltL.png',
+  face_front_tiltR: '/sprites/face_front_tiltR.png',
 };
 
 // Vite/electron-vite serves missing static paths as the SPA fallback HTML in

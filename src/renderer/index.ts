@@ -37,14 +37,17 @@ async function boot() {
 
   const sprout = new Minari();
   sprout.x = app.screen.width / 2;
-  sprout.y = app.screen.height / 2 + 50;
+  // Anchor the character near the bottom of the window so the full ~200 px-tall
+  // rendered art leaves room above the head for the bubble.
+  sprout.y = app.screen.height - 30;
   app.stage.addChild(sprout);
 
   const bubble = new Bubble();
   bubble.x = sprout.x;
-  // Bubble pivots on its bottom edge; sit it just above the sprite top with
-  // a small breathing-room gap.
-  bubble.y = sprout.y - SPRITE_HEIGHT + 2;
+  // Bubble pivots on its bottom edge. Sit it just above the top of the rendered
+  // canvas (≈ 200 px above sprout.y) so it floats over the sprout on the head,
+  // not the face. SPRITE_HEIGHT is only the hit region; the art is taller.
+  bubble.y = sprout.y - 200;
   // Bubble is a DOM overlay (mounted in its constructor); not a stage child.
 
   let generating = false;
