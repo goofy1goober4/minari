@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { BlurFilter, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Mood } from '../../shared/snapshot';
 import { POSTURE_PRESETS, type PosturePreset } from './postures';
 import { loadSprite, type LoadedSprite, type SpriteName } from './sprites';
@@ -48,10 +48,14 @@ const BLINK_FADE_MS = 50;
 // Foot shadow — flat oval under the feet, slightly wider than the body.
 // Swells subtly with breath: amplifies the body's tiny scale change just
 // enough to feel alive without reading as a separate animation.
-const SHADOW_W = 70;
-const SHADOW_H = 14;
+// Y offset pulls the ellipse up to meet the visual feet (the art leaves
+// padding below the toes inside the canvas).
+const SHADOW_W = 60;
+const SHADOW_H = 12;
+const SHADOW_Y_OFFSET = -8;
 const SHADOW_ALPHA = 0.15;
 const SHADOW_BREATH_AMP = 0.03;
+const SHADOW_BLUR_STRENGTH = 0.5;
 const BLINK_CLOSED_MS_DEFAULT = 150;
 const BLINK_CLOSED_MS_SLEEPY = 800;
 const BLINK_INTERVAL_JITTER_MS = 1500;
@@ -156,6 +160,8 @@ export class Minari extends Container {
     this.shadow
       .ellipse(0, 0, SHADOW_W / 2, SHADOW_H / 2)
       .fill({ color: 0x000000, alpha: SHADOW_ALPHA });
+    this.shadow.y = SHADOW_Y_OFFSET;
+    this.shadow.filters = [new BlurFilter({ strength: SHADOW_BLUR_STRENGTH })];
     this.addChild(this.shadow);
     this.addChild(this.torso);
 
