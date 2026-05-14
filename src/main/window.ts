@@ -4,12 +4,14 @@ import { getState, setState } from './memory/repo';
 
 export function createPetWindow(): BrowserWindow {
   const { workArea } = screen.getPrimaryDisplay();
-  const width = 320;
-  const height = 320;
-
-  const defaultX = workArea.x + workArea.width - width - 40;
-  const defaultY = workArea.y + workArea.height - height - 40;
-  const { x, y } = readSavedPosition(width, height, defaultX, defaultY);
+  // Full-screen transparent overlay covering the entire work area — gives the
+  // curious prompt unlimited drag space (left or right of the character).
+  // Saved window positions from earlier corner-pet builds are intentionally
+  // ignored.
+  const width = workArea.width;
+  const height = workArea.height;
+  const x = workArea.x;
+  const y = workArea.y;
 
   const win = new BrowserWindow({
     width,
@@ -33,20 +35,11 @@ export function createPetWindow(): BrowserWindow {
     },
   });
 
-  // Default: all clicks pass through. Renderer toggles this off when cursor
-  // enters a hit region (sprout / bubble) and back on when it leaves.
+  // Default: all clicks pass through. Renderer flips this off via IPC when
+  // the cursor sits on an opaque sprite pixel (alpha hit test on body +
+  // sprout + face_front_open). No window-bounds poll — that would catch
+  // transparent area too.
   win.setIgnoreMouseEvents(true, { forward: true });
-
-  // macOS Electron quirk: setIgnoreMouseEvents(true, {forward:true}) forwards
-  // mousemove but NOT OS-level drag-enter. So an external file drag never
-  // triggers our dragover/drop handlers until something else (a wiggle, a
-  // right-click) forces click-through off first. Poll the cursor in the main
-  // process and flip click-through off the moment the cursor enters the
-  // window bounds — drag-enter then arrives normally. The trade-off is that
-  // the window area (320×320) blocks click-through on hover, but the area is
-  // small, anchored to a desktop corner, and the renderer's sprout-area hit
-  // testing is now redundant rather than load-bearing.
-  startCursorWatch(win);
 
   // Persist position 500 ms after the last move so a drag survives a crash
   // and we don't depend on the will-quit hook (windows may be destroyed by
@@ -80,28 +73,6 @@ export function createPetWindow(): BrowserWindow {
   }
 
   return win;
-}
-
-function startCursorWatch(win: BrowserWindow) {
-  let lastInside: boolean | null = null;
-  const interval = setInterval(() => {
-    if (win.isDestroyed()) {
-      clearInterval(interval);
-      return;
-    }
-    const p = screen.getCursorScreenPoint();
-    const b = win.getBounds();
-    const inside =
-      p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height;
-    if (inside === lastInside) return;
-    lastInside = inside;
-    if (inside) {
-      win.setIgnoreMouseEvents(false);
-    } else {
-      win.setIgnoreMouseEvents(true, { forward: true });
-    }
-  }, 50);
-  win.on('closed', () => clearInterval(interval));
 }
 
 // Restore saved position if it still intersects any connected display;

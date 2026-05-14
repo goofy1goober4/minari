@@ -1,17 +1,11 @@
 import { Application } from 'pixi.js';
-import { Minari, SPRITE_HEIGHT } from './pet/Minari';
+import { Minari } from './pet/Minari';
 import { Bubble } from './ui/Bubble';
 import { CuriousPrompt } from './ui/CuriousPrompt';
 import { runBirthScene } from './birth/runBirthScene';
 import { runResumeScene } from './resume/runResumeScene';
-import { makeVoiceProfile, primeAudio } from './sound/mumble';
+import { makeVoiceProfile, primeAudio, setGlobalVolume, setGlobalMuted } from './sound/mumble';
 import type { GrowthStage } from '../shared/snapshot';
-
-// Hit region tracks the rendered sprite bounds: ~66 px wide (401 × 0.164),
-// SPRITE_HEIGHT tall, anchored at the sprout origin with a small margin.
-const SPROUT_HIT_HALF_W = 35;
-const SPROUT_HIT_TOP = -SPRITE_HEIGHT + 8;
-const SPROUT_HIT_BOTTOM = 14;
 
 const LONGPRESS_MS = 500;
 const LONGPRESS_TOLERANCE_PX = 6;
@@ -36,19 +30,32 @@ async function boot() {
   document.body.appendChild(app.canvas);
 
   const sprout = new Minari();
-  sprout.x = app.screen.width / 2;
-  // Anchor the character near the bottom of the window so the full ~200 px-tall
-  // rendered art leaves room above the head for the bubble.
-  sprout.y = app.screen.height - 30;
+  sprout.x = app.screen.width - 300;
+  sprout.y = app.screen.height - 80;
   app.stage.addChild(sprout);
 
   const bubble = new Bubble();
-  bubble.x = sprout.x;
-  // Bubble pivots on its bottom edge. Sit it just above the top of the rendered
-  // canvas (≈ 200 px above sprout.y) so it floats over the sprout on the head,
-  // not the face. SPRITE_HEIGHT is only the hit region; the art is taller.
-  bubble.y = sprout.y - 200;
+  // Bubble follows the character; positioning is recomputed via syncBubble().
+  const syncBubble = () => {
+    bubble.x = sprout.x;
+    bubble.y = sprout.y - 200;
+  };
+  syncBubble();
   // Bubble is a DOM overlay (mounted in its constructor); not a stage child.
+
+  // Restore saved character position (sprite + bubble follow it).
+  void window.minari.getCharacterPos().then((pos) => {
+    if (!pos) return;
+    sprout.x = pos.x;
+    sprout.y = pos.y;
+    syncBubble();
+  });
+
+  // Restore saved volume + mute so audio reflects user settings from boot.
+  void window.minari.getVolume().then((vol) => {
+    setGlobalVolume(vol.volume);
+    setGlobalMuted(vol.muted);
+  });
 
   let generating = false;
   let clickThrough = true;
@@ -75,36 +82,20 @@ async function boot() {
     lpArmed = false;
   };
 
-  // Coalesce per-event move deltas to the frame boundary so we don't fan out
-  // 120Hz IPC calls at setPosition.
-  let pendingDx = 0;
-  let pendingDy = 0;
-  let moveRaf: number | null = null;
-  const queueWindowMove = (dx: number, dy: number) => {
-    pendingDx += dx;
-    pendingDy += dy;
-    if (moveRaf !== null) return;
-    moveRaf = requestAnimationFrame(() => {
-      moveRaf = null;
-      const x = pendingDx;
-      const y = pendingDy;
-      pendingDx = 0;
-      pendingDy = 0;
-      if (x !== 0 || y !== 0) window.minari.moveWindow(x, y);
-    });
+  // Character drag moves the sprite WITHIN the full-screen window. Position is
+  // saved on drag end (debounce isn't needed — IPC fires once per release).
+  const dragCharacter = (dx: number, dy: number) => {
+    const minX = 65;
+    const maxX = app.screen.width - 65;
+    const minY = 30;
+    const maxY = app.screen.height - 10;
+    sprout.x = Math.max(minX, Math.min(maxX, sprout.x + dx));
+    sprout.y = Math.max(minY, Math.min(maxY, sprout.y + dy));
+    syncBubble();
   };
 
   const hitTest = (x: number, y: number): boolean => {
-    const sdx = x - sprout.x;
-    const sdy = y - sprout.y;
-    if (
-      sdx >= -SPROUT_HIT_HALF_W &&
-      sdx <= SPROUT_HIT_HALF_W &&
-      sdy >= SPROUT_HIT_TOP &&
-      sdy <= SPROUT_HIT_BOTTOM
-    ) {
-      return true;
-    }
+    if (sprout.containsPoint(x - sprout.x, y - sprout.y)) return true;
     if (bubble.isVisible()) {
       const b = bubble.getBounds();
       if (x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY) return true;
@@ -138,24 +129,38 @@ async function boot() {
       fetchHistory: () => window.minari.getRecentMessages(20),
     });
     prompt.mount();
-    const text = await prompt.awaitSubmit();
-    if (text === null) {
-      await prompt.dismiss();
-      mode = 'idle';
-      return { dismissed: true as const };
+    let expectFollowup = false;
+    // Stay open across turns — the prompt only closes when the user dismisses
+    // (Esc / outside click), not after each submission.
+    while (true) {
+      const text = await prompt.awaitSubmit();
+      if (text === null) {
+        await prompt.dismiss();
+        mode = 'idle';
+        return { dismissed: true as const, expectFollowup };
+      }
+      if (text === '') {
+        // Empty Enter → "." trigger; speak without closing the prompt.
+        await speakAndShow();
+        prompt.clearInput();
+        continue;
+      }
+      prompt.setBusy(true);
+      sprout.nudge();
+      let result: { text: string; expectFollowup?: boolean } = { text: '...' };
+      try {
+        result = await window.minari.converse(text);
+      } catch (err) {
+        console.error('[' + logTag + '] converse failed:', err);
+      }
+      bubble.show(result.text);
+      expectFollowup = !!result.expectFollowup;
+      prompt.setBusy(false);
+      prompt.clearInput();
+      // Refresh history live so the user sees the new exchange immediately
+      // without having to reopen the panel.
+      void prompt.refreshHistory();
     }
-    prompt.setBusy(true);
-    sprout.nudge();
-    let result: { text: string; expectFollowup?: boolean } = { text: '...' };
-    try {
-      result = await window.minari.converse(text);
-    } catch (err) {
-      console.error('[' + logTag + '] converse failed:', err);
-    }
-    await prompt.dismiss();
-    mode = 'idle';
-    bubble.show(result.text);
-    return { dismissed: false as const, expectFollowup: !!result.expectFollowup };
   };
 
   const openCuriousPrompt = async () => {
@@ -307,6 +312,7 @@ async function boot() {
     if (mode !== 'idle') return;
     if (dragging) {
       dragging = false;
+      window.minari.setCharacterPos(sprout.x, sprout.y);
       return; // drag consumed — no tap-to-speak
     }
     if (lpFired) {
@@ -339,8 +345,9 @@ async function boot() {
     }
 
     if (dragging) {
-      // Window-drag mode: forward delta to main, suppress everything else.
-      queueWindowMove(e.movementX, e.movementY);
+      // Character drag — move the sprite within the window. The OS window
+      // itself stays full-screen.
+      dragCharacter(e.movementX, e.movementY);
       return;
     }
 

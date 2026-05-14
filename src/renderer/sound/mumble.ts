@@ -83,6 +83,23 @@ export function makeVoiceProfile(nickname: string, mood: Mood): VoiceProfile {
   };
 }
 
+// Runtime-tunable global scale (0..1) applied on top of per-mood profile.volume.
+let globalVolume = 1;
+let globalMuted = false;
+
+export function setGlobalVolume(v: number) {
+  globalVolume = Math.max(0, Math.min(1, v));
+}
+export function setGlobalMuted(m: boolean) {
+  globalMuted = m;
+}
+export function getGlobalVolume(): number {
+  return globalVolume;
+}
+export function getGlobalMuted(): boolean {
+  return globalMuted;
+}
+
 let ctx: AudioContext | null = null;
 const buffers = new Map<string, AudioBuffer>();
 let loadingPromise: Promise<void> | null = null;
@@ -178,7 +195,8 @@ export async function playMumble(text: string, profile: VoiceProfile) {
     const playbackRate = (pitchHz / SAMPLE_REFERENCE_HZ) * PLAYBACK_RATE_MULTIPLIER;
     const dur = buf.duration / playbackRate;
 
-    scheduleSample(audioCtx, t, buf, playbackRate, profile.volume);
+    const effectiveVol = globalMuted ? 0 : profile.volume * globalVolume;
+    scheduleSample(audioCtx, t, buf, playbackRate, effectiveVol);
 
     const gapS =
       (profile.charGapMs * (1 - GAP_JITTER / 2 + Math.random() * GAP_JITTER)) / 1000;

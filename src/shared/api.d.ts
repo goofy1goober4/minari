@@ -31,6 +31,15 @@ declare global {
       getStage(): Promise<GrowthStage>;
       converse(text: string): Promise<{ text: string; expectFollowup?: boolean }>;
       getRecentMessages(limit?: number): Promise<RecentMessage[]>;
+      getCuriousPos(): Promise<{ x: number; y: number } | null>;
+      setCuriousPos(x: number, y: number): void;
+      getCuriousHistoryHeight(): Promise<number | null>;
+      setCuriousHistoryHeight(h: number): void;
+      getCharacterPos(): Promise<{ x: number; y: number } | null>;
+      setCharacterPos(x: number, y: number): void;
+      getVolume(): Promise<{ volume: number; muted: boolean }>;
+      setVolume(volume: number, muted: boolean): void;
+      quitApp(): void;
     };
   }
 }

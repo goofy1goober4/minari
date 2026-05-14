@@ -64,4 +64,27 @@ contextBridge.exposeInMainWorld('minari', {
     ipcRenderer.invoke('minari:converse', text),
   getRecentMessages: (limit: number = 20): Promise<RecentMessage[]> =>
     ipcRenderer.invoke('minari:get-recent-messages', limit),
+  getCuriousPos: (): Promise<{ x: number; y: number } | null> =>
+    ipcRenderer.invoke('minari:get-curious-pos'),
+  setCuriousPos: (x: number, y: number): void => {
+    ipcRenderer.send('minari:set-curious-pos', x, y);
+  },
+  getCuriousHistoryHeight: (): Promise<number | null> =>
+    ipcRenderer.invoke('minari:get-curious-history-h'),
+  setCuriousHistoryHeight: (h: number): void => {
+    ipcRenderer.send('minari:set-curious-history-h', h);
+  },
+  getCharacterPos: (): Promise<{ x: number; y: number } | null> =>
+    ipcRenderer.invoke('minari:get-character-pos'),
+  setCharacterPos: (x: number, y: number): void => {
+    ipcRenderer.send('minari:set-character-pos', x, y);
+  },
+  getVolume: (): Promise<{ volume: number; muted: boolean }> =>
+    ipcRenderer.invoke('minari:get-volume'),
+  setVolume: (volume: number, muted: boolean): void => {
+    ipcRenderer.send('minari:set-volume', volume, muted);
+  },
+  quitApp: (): void => {
+    ipcRenderer.send('minari:quit-app');
+  },
 });

@@ -1,5 +1,5 @@
 const DEFAULT_MAX_LEN = 20;
-const DEFAULT_SUBMIT_LABEL = '응';
+const DEFAULT_SUBMIT_LABEL = 'ok';
 
 export interface NicknamePromptOptions {
   question: string;

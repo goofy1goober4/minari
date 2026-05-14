@@ -121,7 +121,7 @@ function injectStylesOnce() {
       top: 0;
       pointer-events: none;
       user-select: none;
-      z-index: 900;
+      z-index: 1100;
       transform-origin: 50% 100%;
 
       /* mint-teal tinted glass */

@@ -121,6 +121,10 @@ export class Minari extends Container {
   private sproutAng = 0;
   private sproutVel = 0;
 
+  // Cached alpha mask (composite of body+sprout+face_front_open) for
+  // pixel-accurate hit testing from the renderer.
+  private hitMask: { w: number; h: number; data: Uint8ClampedArray } | null = null;
+
   constructor() {
     super();
     const openSprites = [
@@ -168,6 +172,61 @@ export class Minari extends Container {
     this.scheduleNextBlink();
     this.scheduleNextTilt();
     void this.loadAll();
+    void this.loadHitMask();
+  }
+
+  // Composite alpha mask from body + sprout + face_front_open so the head/
+  // sprout region (drawn in those layers, not in body.png alone) hit-tests.
+  // Drawn into one offscreen 2D canvas — `source-over` blending gives an OR
+  // semantics on alpha which is exactly what we need.
+  private async loadHitMask(): Promise<void> {
+    const SOURCES = [
+      '/sprites/body.png',
+      '/sprites/sprout.png',
+      '/sprites/face_front_open.png',
+    ];
+    try {
+      const imgs = await Promise.all(
+        SOURCES.map(
+          (src) =>
+            new Promise<HTMLImageElement | null>((resolve) => {
+              const el = new Image();
+              el.onload = () => resolve(el);
+              el.onerror = () => resolve(null);
+              el.src = src;
+            }),
+        ),
+      );
+      const ref = imgs.find((i): i is HTMLImageElement => i !== null);
+      if (!ref) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = ref.naturalWidth;
+      canvas.height = ref.naturalHeight;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      for (const img of imgs) if (img) ctx.drawImage(img, 0, 0);
+      const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      this.hitMask = { w: canvas.width, h: canvas.height, data: id.data };
+      console.log('[minari] hit mask composited ' + canvas.width + 'x' + canvas.height);
+    } catch (err) {
+      console.warn('[minari] hit mask load failed', err);
+    }
+  }
+
+  // Pixel-accurate hit test. localX/localY are container-local (sprite
+  // anchor 0.5, 1 → origin at the feet, centre horizontally).
+  containsPoint(localX: number, localY: number): boolean {
+    if (!this.hitMask) {
+      // Pre-mask fallback: generous bounding box so cursor isn't dead during
+      // the first frames.
+      const halfW = (CANVAS_W * SPRITE_SCALE) / 2;
+      const fullH = CANVAS_H * SPRITE_SCALE;
+      return localX >= -halfW && localX <= halfW && localY >= -fullH && localY <= 14;
+    }
+    const cx = Math.floor(localX / SPRITE_SCALE + this.hitMask.w / 2);
+    const cy = Math.floor(localY / SPRITE_SCALE + this.hitMask.h);
+    if (cx < 0 || cy < 0 || cx >= this.hitMask.w || cy >= this.hitMask.h) return false;
+    return this.hitMask.data[(cy * this.hitMask.w + cx) * 4 + 3] > 32;
   }
 
   private async loadAll(): Promise<void> {

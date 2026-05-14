@@ -1,9 +1,9 @@
-import { ipcMain, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow, app } from 'electron';
 import { speakAsMinari } from './llm/speak';
 import { handleUserInput } from './llm/converse';
 import { BirthStateMachine } from './birth';
 import { computeBootState, setCurrent, markInteraction, noteSpoken } from './snapshot';
-import { getState, recordMessage, getRecentHistory } from './memory/repo';
+import { getState, setState, recordMessage, getRecentHistory } from './memory/repo';
 import { reactToImage, readImageAsBase64 } from './llm/imageReact';
 import { getCurrentStage } from './growth';
 import {
@@ -150,6 +150,70 @@ export function registerIpc() {
     if (!Number.isFinite(dx) || !Number.isFinite(dy)) return;
     const [x, y] = win.getPosition();
     win.setPosition(Math.round(x + dx), Math.round(y + dy), false);
+  });
+
+  ipcMain.handle('minari:get-curious-pos', (): { x: number; y: number } | null => {
+    const rawX = getState('curious_x');
+    const rawY = getState('curious_y');
+    if (rawX === null || rawY === null) return null;
+    const x = Number(rawX);
+    const y = Number(rawY);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  });
+
+  ipcMain.on('minari:set-curious-pos', (_event, x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    setState('curious_x', String(Math.round(x)));
+    setState('curious_y', String(Math.round(y)));
+  });
+
+  ipcMain.handle('minari:get-character-pos', (): { x: number; y: number } | null => {
+    const rawX = getState('character_x');
+    const rawY = getState('character_y');
+    if (rawX === null || rawY === null) return null;
+    const x = Number(rawX);
+    const y = Number(rawY);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y };
+  });
+
+  ipcMain.on('minari:set-character-pos', (_event, x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    setState('character_x', String(Math.round(x)));
+    setState('character_y', String(Math.round(y)));
+  });
+
+  ipcMain.handle('minari:get-volume', (): { volume: number; muted: boolean } => {
+    const raw = getState('volume');
+    const mraw = getState('muted');
+    const v = raw === null ? 1 : Number(raw);
+    return {
+      volume: Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1,
+      muted: mraw === '1',
+    };
+  });
+  ipcMain.on('minari:set-volume', (_event, volume: number, muted: boolean) => {
+    if (Number.isFinite(volume)) {
+      setState('volume', String(Math.max(0, Math.min(1, volume))));
+    }
+    setState('muted', muted ? '1' : '0');
+  });
+
+  ipcMain.on('minari:quit-app', () => {
+    app.quit();
+  });
+
+  ipcMain.handle('minari:get-curious-history-h', (): number | null => {
+    const raw = getState('curious_history_h');
+    if (raw === null) return null;
+    const h = Number(raw);
+    return Number.isFinite(h) ? h : null;
+  });
+
+  ipcMain.on('minari:set-curious-history-h', (_event, h: number) => {
+    if (!Number.isFinite(h)) return;
+    setState('curious_history_h', String(Math.round(h)));
   });
 
   ipcMain.on('minari:set-click-through', (event, passThrough: boolean) => {
