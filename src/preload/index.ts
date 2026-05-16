@@ -23,6 +23,10 @@ contextBridge.exposeInMainWorld('minari', {
   // UI language for the renderer (birth-scene text etc.). Mirrors src/main/
   // llm/lang.ts — set via MINARI_LANG=ko (아버지 데모용).
   lang: (process.env.MINARI_LANG === 'ko' ? 'ko' : 'en') as 'en' | 'ko',
+  // Forced body/face pose for the demo. MINARI_POSE=reading|diary; default idle.
+  pose: ((p) => (p === 'reading' || p === 'diary' ? p : 'idle'))(
+    process.env.MINARI_POSE,
+  ) as 'idle' | 'reading' | 'diary',
   speak: (): Promise<string> => ipcRenderer.invoke('minari:speak'),
   setClickThrough: (passThrough: boolean): void => {
     ipcRenderer.send('minari:set-click-through', passThrough);

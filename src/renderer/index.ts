@@ -29,7 +29,7 @@ async function boot() {
 
   document.body.appendChild(app.canvas);
 
-  const sprout = new Minari();
+  const sprout = new Minari(window.minari.pose);
   sprout.x = app.screen.width - 300;
   sprout.y = app.screen.height - 80;
   app.stage.addChild(sprout);

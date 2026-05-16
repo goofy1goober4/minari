@@ -9,9 +9,19 @@ export type SpriteName =
   | 'face_front_smile'
   | 'face_front_surprise'
   | 'face_front_tiltL'
-  | 'face_front_tiltR';
+  | 'face_front_tiltR'
+  // reading pose
+  | 'sit_readingbook'
+  | 'reading_book_face_open'
+  | 'reading_book_face_half'
+  | 'reading_book_face_closed'
+  // diary pose
+  | 'diary_body'
+  | 'diary_face_open'
+  | 'diary_face_half'
+  | 'diary_face_closed';
 
-const FILE_FOR: Record<SpriteName, string> = {
+export const FILE_FOR: Record<SpriteName, string> = {
   body: '/sprites/body.png',
   sprout: '/sprites/sprout.png',
   face_front_open: '/sprites/face_front_open.png',
@@ -21,6 +31,14 @@ const FILE_FOR: Record<SpriteName, string> = {
   face_front_surprise: '/sprites/face_front_surprise.png',
   face_front_tiltL: '/sprites/face_front_tiltL.png',
   face_front_tiltR: '/sprites/face_front_tiltR.png',
+  sit_readingbook: '/sprites/sit_readingbook.png',
+  reading_book_face_open: '/sprites/reading_book_face_open.png',
+  reading_book_face_half: '/sprites/reading_book_face_half.png',
+  reading_book_face_closed: '/sprites/reading_book_face_closed.png',
+  diary_body: '/sprites/diary_body.png',
+  diary_face_open: '/sprites/diary_face_open.png',
+  diary_face_half: '/sprites/diary_face_half.png',
+  diary_face_closed: '/sprites/diary_face_closed.png',
 };
 
 // Load through a plain HTMLImageElement rather than PixiJS Assets.load.

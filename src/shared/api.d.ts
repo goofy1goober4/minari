@@ -10,6 +10,7 @@ declare global {
   interface Window {
     minari: {
       lang: 'en' | 'ko';
+      pose: 'idle' | 'reading' | 'diary';
       speak(): Promise<string>;
       setClickThrough(passThrough: boolean): void;
       moveWindow(dx: number, dy: number): void;

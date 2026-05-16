@@ -1,7 +1,8 @@
 import { BlurFilter, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Mood } from '../../shared/snapshot';
 import { POSTURE_PRESETS, type PosturePreset } from './postures';
-import { loadSprite, type LoadedSprite, type SpriteName } from './sprites';
+import { FILE_FOR, loadSprite, type LoadedSprite, type SpriteName } from './sprites';
+import { POSES, type Pose, type PoseConfig } from './poses';
 
 // Hit-region math in index.ts (SPROUT_HIT_*) is anchored at this height, so
 // keep the export stable when art is swapped — re-tune via SPRITE_SCALE below.
@@ -48,11 +49,11 @@ const BLINK_FADE_MS = 50;
 // Foot shadow — flat oval under the feet, slightly wider than the body.
 // Swells subtly with breath: amplifies the body's tiny scale change just
 // enough to feel alive without reading as a separate animation.
-// Y offset pulls the ellipse up to meet the visual feet (the art leaves
-// padding below the toes inside the canvas).
+// Vertical offset is per-pose (poses.ts shadowYOffset) — it lifts the ellipse
+// to the visual feet/seat, which sits at a different height in standing vs
+// sitting art.
 const SHADOW_W = 60;
 const SHADOW_H = 12;
-const SHADOW_Y_OFFSET = -8;
 const SHADOW_ALPHA = 0.15;
 const SHADOW_BREATH_AMP = 0.03;
 const SHADOW_BLUR_STRENGTH = 0.5;
@@ -91,12 +92,16 @@ export class Minari extends Container {
     tiltR: new Sprite(Texture.WHITE),
   };
   private faceClosed = new Sprite(Texture.WHITE);
+  // Discrete mid-blink frame — used by the diary pose; alpha 0 otherwise.
+  private faceHalf = new Sprite(Texture.WHITE);
   private sproutSprite = new Sprite(Texture.WHITE);
 
   private faceTextures: Partial<Record<SpriteName, LoadedSprite>> = {};
   private faceDir: FaceDir = 'front';
   private mood: Mood = 'calm';
   private posture: PosturePreset = POSTURE_PRESETS.idle;
+  private readonly pose: Pose;
+  private readonly poseConfig: PoseConfig;
 
   private elapsedMs = 0;
 
@@ -125,14 +130,22 @@ export class Minari extends Container {
   // pixel-accurate hit testing from the renderer.
   private hitMask: { w: number; h: number; data: Uint8ClampedArray } | null = null;
 
-  constructor() {
+  constructor(pose: Pose = 'idle') {
     super();
+    this.pose = pose;
+    this.poseConfig = POSES[pose];
     const openSprites = [
       this.faceOpenSprites.front,
       this.faceOpenSprites.tiltL,
       this.faceOpenSprites.tiltR,
     ];
-    for (const s of [this.body, ...openSprites, this.faceClosed, this.sproutSprite]) {
+    for (const s of [
+      this.body,
+      ...openSprites,
+      this.faceClosed,
+      this.faceHalf,
+      this.sproutSprite,
+    ]) {
       s.anchor.set(0.5, 1);
       s.y = 0;
     }
@@ -143,6 +156,7 @@ export class Minari extends Container {
     applyPlaceholder(this.body, PLACEHOLDER.body);
     for (const s of openSprites) applyPlaceholder(s, PLACEHOLDER.face);
     applyPlaceholder(this.faceClosed, PLACEHOLDER.face);
+    applyPlaceholder(this.faceHalf, PLACEHOLDER.face);
     applyPlaceholder(this.sproutSprite, PLACEHOLDER.sprout);
 
     // Sprout layer disabled — body.png already contains the drawn sprout, so a
@@ -151,12 +165,13 @@ export class Minari extends Container {
     this.sproutSprite.visible = false;
 
     this.faceClosed.alpha = 0;
+    this.faceHalf.alpha = 0;
     this.faceOpenSprites.tiltL.alpha = 0;
     this.faceOpenSprites.tiltR.alpha = 0;
     // front starts visible.
     this.faceOpenSprites.front.alpha = 1;
 
-    this.faceLayer.addChild(...openSprites, this.faceClosed, this.sproutSprite);
+    this.faceLayer.addChild(...openSprites, this.faceHalf, this.faceClosed, this.sproutSprite);
     this.torso.addChild(this.body, this.faceLayer);
 
     // Shadow sits at the feet (container origin = anchor bottom) and renders
@@ -164,13 +179,13 @@ export class Minari extends Container {
     this.shadow
       .ellipse(0, 0, SHADOW_W / 2, SHADOW_H / 2)
       .fill({ color: 0x000000, alpha: SHADOW_ALPHA });
-    this.shadow.y = SHADOW_Y_OFFSET;
+    this.shadow.y = this.poseConfig.shadowYOffset;
     this.shadow.filters = [new BlurFilter({ strength: SHADOW_BLUR_STRENGTH })];
     this.addChild(this.shadow);
     this.addChild(this.torso);
 
     this.scheduleNextBlink();
-    this.scheduleNextTilt();
+    if (this.poseConfig.tilt) this.scheduleNextTilt();
     void this.loadAll();
     void this.loadHitMask();
   }
@@ -180,11 +195,8 @@ export class Minari extends Container {
   // Drawn into one offscreen 2D canvas — `source-over` blending gives an OR
   // semantics on alpha which is exactly what we need.
   private async loadHitMask(): Promise<void> {
-    const SOURCES = [
-      '/sprites/body.png',
-      '/sprites/sprout.png',
-      '/sprites/face_front_open.png',
-    ];
+    // Pose-driven: sit poses are wider/shorter, so the mask follows their art.
+    const SOURCES = this.poseConfig.hitMaskSprites.map((n) => FILE_FOR[n]);
     try {
       const imgs = await Promise.all(
         SOURCES.map(
@@ -230,6 +242,38 @@ export class Minari extends Container {
   }
 
   private async loadAll(): Promise<void> {
+    if (this.pose === 'idle') {
+      await this.loadIdleLayers();
+    } else {
+      await this.loadPoseLayers();
+    }
+  }
+
+  // Reading / diary: swap in the pose's body + face set. idle is left on its
+  // own untouched path (loadIdleLayers) so its behaviour can't regress.
+  private async loadPoseLayers(): Promise<void> {
+    const cfg = this.poseConfig;
+    const names: SpriteName[] = [cfg.body, cfg.faceDefault, cfg.faceClosed];
+    if (cfg.faceHalf) names.push(cfg.faceHalf);
+    const loaded = await Promise.all(
+      names.map((n) => loadSprite(n, n === cfg.body ? PLACEHOLDER.body : PLACEHOLDER.face)),
+    );
+    const at = (n: SpriteName): LoadedSprite => loaded[names.indexOf(n)];
+    applyLoaded(this.body, at(cfg.body));
+    // The pose's resting face occupies the 'front' slot (sit poses never tilt).
+    applyLoaded(this.faceOpenSprites.front, at(cfg.faceDefault));
+    applyLoaded(this.faceClosed, at(cfg.faceClosed));
+    if (cfg.faceHalf) applyLoaded(this.faceHalf, at(cfg.faceHalf));
+    console.log(
+      '[minari] pose=' +
+        this.pose +
+        ' layers loaded ' +
+        names.map((n, i) => n + '=' + (loaded[i].isPlaceholder ? 'placeholder' : 'png')).join(' '),
+    );
+    this.updateFaceAlphas();
+  }
+
+  private async loadIdleLayers(): Promise<void> {
     const faceNames: SpriteName[] = [
       'face_front_open',
       'face_front_closed',
@@ -344,13 +388,16 @@ export class Minari extends Container {
       (v) => (this.bodyWobbleVel = v),
     );
 
-    // Auto-tilt scheduler.
-    if (this.currentTiltDir !== null) {
-      if (this.elapsedMs >= this.tiltEndsAtMs) {
-        this.endTilt();
+    // Auto-tilt scheduler — idle pose only (a sitting character tilting its
+    // head reads as unnatural).
+    if (this.poseConfig.tilt) {
+      if (this.currentTiltDir !== null) {
+        if (this.elapsedMs >= this.tiltEndsAtMs) {
+          this.endTilt();
+        }
+      } else if (this.elapsedMs >= this.nextTiltAtMs) {
+        this.startTilt();
       }
-    } else if (this.elapsedMs >= this.nextTiltAtMs) {
-      this.startTilt();
     }
 
     // Composite rotation: directional tilt + wobble spring.
@@ -451,22 +498,33 @@ export class Minari extends Container {
   // opacity dipping (0.5 + 0.5 only sums to 0.75 in alpha compositing — that
   // gap reads as a brightness flicker each blink, hence keep-open-1 instead).
   private updateFaceAlphas(): void {
-    let closedAlpha: number;
+    // Poses with a discrete mid-blink frame (diary) show that frame outright
+    // during the fade phases; others crossfade default↔closed via alpha.
+    const hasHalf = this.poseConfig.faceHalf !== null;
+    let openAlpha = 1;
+    let halfAlpha = 0;
+    let closedAlpha = 0;
     switch (this.blinkPhase) {
       case 'idle':
-        closedAlpha = 0;
         break;
       case 'fade_close':
       case 'fade_open':
-        closedAlpha = 0.5;
+        if (hasHalf) {
+          openAlpha = 0;
+          halfAlpha = 1;
+        } else {
+          closedAlpha = 0.5;
+        }
         break;
       case 'closed':
+        if (hasHalf) openAlpha = 0;
         closedAlpha = 1;
         break;
     }
     for (const dir of ['front', 'tiltL', 'tiltR'] as FaceDir[]) {
-      this.faceOpenSprites[dir].alpha = dir === this.faceDir ? 1 : 0;
+      this.faceOpenSprites[dir].alpha = dir === this.faceDir ? openAlpha : 0;
     }
+    this.faceHalf.alpha = halfAlpha;
     this.faceClosed.alpha = closedAlpha;
   }
 }
