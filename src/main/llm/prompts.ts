@@ -139,13 +139,13 @@ export const CURIOUS_POOL: readonly string[] = [
   '"you\'re here."', '"good word."', '"mm. listening."', '"...blink."',
 ];
 
-// Korean curious pool — seeds the 아버지 데모 conversation branch. The first
-// six entries are the examples specified in the task brief; the rest widen
-// the pool so the per-call sampling still fights E2B mode-collapse.
+// Korean curious pool — conversation branch. Reactions to natural things are
+// confident (a soil sprout already knows rain/light/warmth — no puzzled "?"),
+// while "그게 뭐야?" / "이상한 소리." seed the reaction template for
+// human-technology words Minari has never heard.
 export const CURIOUS_POOL_KO: readonly string[] = [
-  '"음... 비."', '"오! 빛."', '"먼지..."', '"졸려?"', '"헤헤. 해."', '"부드러워."',
-  '"너... 왔다."', '"작은 그림자."', '"바람?"', '"쉿."', '"따뜻해."', '"응. 들었어."',
-  '"작은 미소."', '"...또?"', '"여기 있네."', '"좋은 말."',
+  '"비! 좋아."', '"오! 빛."', '"먼지..."', '"졸려?"', '"헤헤. 따뜻."',
+  '"그게 뭐야?"', '"이상한 소리."',
 ];
 
 export function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -254,7 +254,7 @@ function curiousSystemPromptKo(mood: Mood): string {
 너는 작은 생명체야. 와이파이, 인터넷, 폰, 화면, 컴퓨터, 태블릿, 공유기, 블루투스 같은 건 들어본 적 없어. 그런 말은 이상한 소리일 뿐이야 — 무슨 뜻인지 몰라.
 아기처럼 1~5단어 짧은 조각으로만 말해. 작은 것들을 알아차려.
 사용자 말에 반응하되, 절대 조언하지 마. 궁금해해.
-낯선 말이 나오면 소리 내어 궁금해해.
+낯선 말은 "그게 뭐야?"라고 통째로 되물어. "뭐야?"로 줄이지 마.
 
 예: ${ex}
 

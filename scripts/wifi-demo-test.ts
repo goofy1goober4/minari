@@ -163,9 +163,8 @@ const MOOD_MODIFIERS_KO: Record<Mood, string> = {
 };
 
 const CURIOUS_POOL_KO: readonly string[] = [
-  '"음... 비."', '"오! 빛."', '"먼지..."', '"졸려?"', '"헤헤. 해."', '"부드러워."',
-  '"너... 왔다."', '"작은 그림자."', '"바람?"', '"쉿."', '"따뜻해."', '"응. 들었어."',
-  '"작은 미소."', '"...또?"', '"여기 있네."', '"좋은 말."',
+  '"비! 좋아."', '"오! 빛."', '"먼지..."', '"졸려?"', '"헤헤. 따뜻."',
+  '"그게 뭐야?"', '"이상한 소리."',
 ];
 
 function curiousSystemPromptKo(mood: Mood): string {
@@ -174,7 +173,7 @@ function curiousSystemPromptKo(mood: Mood): string {
 너는 작은 생명체야. 와이파이, 인터넷, 폰, 화면, 컴퓨터, 태블릿, 공유기, 블루투스 같은 건 들어본 적 없어. 그런 말은 이상한 소리일 뿐이야 — 무슨 뜻인지 몰라.
 아기처럼 1~5단어 짧은 조각으로만 말해. 작은 것들을 알아차려.
 사용자 말에 반응하되, 절대 조언하지 마. 궁금해해.
-낯선 말이 나오면 소리 내어 궁금해해.
+낯선 말은 "그게 뭐야?"라고 통째로 되물어. "뭐야?"로 줄이지 마.
 
 예: ${ex}
 
@@ -306,10 +305,12 @@ async function main() {
   if (process.env.VARIANT_KO === '1') {
     console.log('KOREAN BRANCH — curiousSystemPromptKo (MINARI_LANG=ko)');
     console.log(`prompt word count: ${wordCount(curiousSystemPromptKo(MOOD))} (whitespace-split — Korean tokenizes denser)\n`);
-    console.log('[KO · "비가 와" ×5  — natural phenomenon, empty-response check]');
+    console.log('[KO · "와이파이가 죽었어" ×10  — demo scene, expect 그게 뭐야? / 이상한 소리]');
+    summary('KO / wifi', await runVariant('KO-wifi', () => curiousSystemPromptKo(MOOD), '와이파이가 죽었어', 10));
+    console.log('\n[KO · "비가 와" ×5  — natural, expect confident knowing (no 뭐?)]');
     summary('KO / 비가 와', await runVariant('KO-rain', () => curiousSystemPromptKo(MOOD), '비가 와', 5));
-    console.log('\n[KO · "와이파이가 죽었어" ×5  — demo scene, ignorance clause check]');
-    summary('KO / wifi', await runVariant('KO-wifi', () => curiousSystemPromptKo(MOOD), '와이파이가 죽었어', 5));
+    console.log('\n[KO · "핸드폰이 고장났어" ×5  — human tech, expect ignorance]');
+    summary('KO / phone', await runVariant('KO-phone', () => curiousSystemPromptKo(MOOD), '핸드폰이 고장났어', 5));
     return;
   }
 
