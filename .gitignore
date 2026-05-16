@@ -101,6 +101,9 @@ dist
 # electron-builder output
 release/
 
+# Windows demo USB package (binaries + bundled llama.cpp; models added manually)
+dist-win/
+
 # vitepress build output
 **/.vitepress/dist
 

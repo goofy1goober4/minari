@@ -20,6 +20,9 @@ export interface RecentMessage {
 }
 
 contextBridge.exposeInMainWorld('minari', {
+  // UI language for the renderer (birth-scene text etc.). Mirrors src/main/
+  // llm/lang.ts — set via MINARI_LANG=ko (아버지 데모용).
+  lang: (process.env.MINARI_LANG === 'ko' ? 'ko' : 'en') as 'en' | 'ko',
   speak: (): Promise<string> => ipcRenderer.invoke('minari:speak'),
   setClickThrough: (passThrough: boolean): void => {
     ipcRenderer.send('minari:set-click-through', passThrough);

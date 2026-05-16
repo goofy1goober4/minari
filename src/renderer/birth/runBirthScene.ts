@@ -63,9 +63,11 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
   // Nickname overlays need real cursor + keyboard, so disable click-through.
   window.minari.setClickThrough(false);
 
+  const isKo = window.minari.lang === 'ko';
+
   // Q1 — what should I (Minari, the toddler-sprout) call you?
   const userPrompt = new NicknamePrompt({
-    question: 'you... name?',
+    question: isKo ? '너... 이름?' : 'you... name?',
     placeholder: '...',
   });
   userPrompt.mount();
@@ -74,7 +76,7 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
 
   // Q2 — what should you (the human) call me?
   const petPrompt = new NicknamePrompt({
-    question: 'me... name?',
+    question: isKo ? '나... 이름?' : 'me... name?',
     placeholder: '...',
   });
   petPrompt.mount();
