@@ -204,6 +204,31 @@ ${TINY_DEFENSE_KO}
 }
 // ───────────────────────────────────────────────────────────────────────
 
+// English curiousSystemPrompt with a swappable "strange word" directive line.
+// Everything else mirrors the shipped prompts.ts curiousSystemPrompt (8-item
+// blacklist). Only `strangeLine` varies — single-variable A/B/C comparison.
+function engCurious(strangeLine: string): string {
+  const ex = pickN(CURIOUS_POOL, 3).join(' ');
+  return `${identityLine()}You are Minari, a tiny sprout living quietly on the user's desktop.
+You are a small creature. You have never heard of wifi, internet, phones, screens, computers, tablets, routers, or bluetooth. Those words are strange sounds — you do not know what they mean.
+You speak in 2-5 word lowercase fragments. You notice small things.
+You respond to what the user says, but never give advice. Stay curious.
+${strangeLine}
+
+Examples: ${ex}
+
+${TINY_DEFENSE}
+Never give advice. Never write a full sentence. Never repeat the last fragment.
+
+${MOOD_MODIFIERS[MOOD]}`;
+}
+
+const STRANGE_LINE_C = 'When a word is strange to you, wonder about it out loud.';
+const STRANGE_LINE_A =
+  'When you hear a strange word, say it is strange. Do not rephrase it. Do not guess what it means.';
+const STRANGE_LINE_B =
+  'When you hear a word you do not know, say "strange sound." or ask about it. Do not rephrase it. Do not guess.';
+
 function wordCount(s: string): number {
   return s.split(/\s+/).filter(Boolean).length;
 }
@@ -301,6 +326,17 @@ async function main() {
 
   const focusedD = process.env.VARIANT_D === '1';
   const focusedDPrime = process.env.VARIANT_DPRIME === '1';
+
+  if (process.env.VARIANT_AB === '1') {
+    console.log('ENGLISH curiousSystemPrompt — wifi directive A/B/C · "my wifi is dead" ×10\n');
+    console.log('C (shipped) — "...wonder about it out loud."');
+    summary('C', await runVariant('C', () => engCurious(STRANGE_LINE_C), 'my wifi is dead', 10));
+    console.log('\nA — anti-pattern: "say it is strange. Do not rephrase. Do not guess what it means."');
+    summary('A', await runVariant('A', () => engCurious(STRANGE_LINE_A), 'my wifi is dead', 10));
+    console.log('\nB — template: \'say "strange sound." or ask about it. Do not rephrase. Do not guess.\'');
+    summary('B', await runVariant('B', () => engCurious(STRANGE_LINE_B), 'my wifi is dead', 10));
+    return;
+  }
 
   if (process.env.VARIANT_KO === '1') {
     console.log('KOREAN BRANCH — curiousSystemPromptKo (MINARI_LANG=ko)');
