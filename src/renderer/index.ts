@@ -299,14 +299,21 @@ async function boot() {
         Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' mode=' + mode,
     );
     primeAudio();
-    if (mode !== 'idle') return;
+    if (mode !== 'idle') {
+      console.log('[gesture] timer skipped: reason=mode=' + mode);
+      return;
+    }
     sprout.nudge();
 
     if (bubble.isVisible()) {
+      console.log('[gesture] timer skipped: reason=bubble-visible');
       bubble.dismiss();
       return;
     }
-    if (generating) return;
+    if (generating) {
+      console.log('[gesture] timer skipped: reason=generating');
+      return;
+    }
 
     // Reset gesture state defensively — covers a missed pointerup off-window.
     dragging = false;
@@ -328,6 +335,8 @@ async function boot() {
         void openCuriousPrompt();
       }, LONGPRESS_MS);
       console.log('[gesture] longpress timer started');
+    } else {
+      console.log('[gesture] timer skipped: reason=stage=' + stage);
     }
 
     // Capture the pointer so a fast drag past the window edge still routes
