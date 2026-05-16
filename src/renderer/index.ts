@@ -5,7 +5,7 @@ import { CuriousPrompt } from './ui/CuriousPrompt';
 import { runBirthScene } from './birth/runBirthScene';
 import { runResumeScene } from './resume/runResumeScene';
 import { makeVoiceProfile, primeAudio, setGlobalVolume, setGlobalMuted } from './sound/mumble';
-import type { GrowthStage } from '../shared/snapshot';
+import type { BootState, GrowthStage } from '../shared/snapshot';
 
 const LONGPRESS_MS = 500;
 const LONGPRESS_TOLERANCE_PX = 6;
@@ -18,6 +18,17 @@ async function boot() {
   // first ping/alarm fires silently because nobody clicked the sprout yet.
   primeAudio();
 
+  // Resolve the body/face pose before constructing Minari. MINARI_POSE env
+  // wins; otherwise a completed-birth resume with activity 'reading' uses the
+  // reading pose. birthState/bootState are fetched once here and reused below.
+  const birthState = await window.minari.getBirthState();
+  let bootState: BootState | null = null;
+  let pose = window.minari.pose;
+  if (birthState.completed) {
+    bootState = await window.minari.getBootState();
+    if (pose === 'idle' && bootState.activity === 'reading') pose = 'reading';
+  }
+
   const app = new Application();
   await app.init({
     backgroundAlpha: 0,
@@ -29,7 +40,7 @@ async function boot() {
 
   document.body.appendChild(app.canvas);
 
-  const sprout = new Minari(window.minari.pose);
+  const sprout = new Minari(pose);
   sprout.x = app.screen.width - 300;
   sprout.y = app.screen.height - 80;
   app.stage.addChild(sprout);
@@ -260,9 +271,15 @@ async function boot() {
   // on Minari. Once click-through is off the real pointermove/leave handlers
   // are authoritative (they know about drag + input mode), so we stay out
   // while clickThrough is false. Never fires on macOS (no poll there).
+  let cursorMsgs = 0;
   window.minari.onCursor((pos) => {
+    cursorMsgs++;
+    if (cursorMsgs === 1) console.log('[cursor] first poll message received');
     if (!clickThrough || mode !== 'idle' || generating) return;
-    if (hitTest(pos.x, pos.y)) setClickThroughIfChanged(false);
+    if (hitTest(pos.x, pos.y)) {
+      console.log('[cursor] hit ' + Math.round(pos.x) + ',' + Math.round(pos.y) + ' → interactive');
+      setClickThroughIfChanged(false);
+    }
   });
 
   app.ticker.add((ticker) => {
@@ -421,7 +438,6 @@ async function boot() {
     }
   });
 
-  const birthState = await window.minari.getBirthState();
   if (!birthState.completed) {
     mode = 'birth';
     try {
@@ -436,8 +452,7 @@ async function boot() {
       clickThrough = true;
       window.minari.setClickThrough(true);
     }
-  } else {
-    const bootState = await window.minari.getBootState();
+  } else if (bootState) {
     console.log('[boot] resume:', bootState);
     if (bootState.nickname) {
       bubble.setVoice(makeVoiceProfile(bootState.nickname, bootState.mood));

@@ -11,6 +11,7 @@ declare global {
     minari: {
       lang: 'en' | 'ko';
       pose: 'idle' | 'reading' | 'diary';
+      scale: number;
       speak(): Promise<string>;
       setClickThrough(passThrough: boolean): void;
       moveWindow(dx: number, dy: number): void;

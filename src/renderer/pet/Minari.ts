@@ -10,7 +10,9 @@ export const SPRITE_HEIGHT = 135;
 
 const CANVAS_W = 1300;
 const CANVAS_H = 2000;
-const SPRITE_SCALE = 0.1;
+// Render scale. Overridable on low-res displays via MINARI_SCALE (bridged as
+// window.minari.scale); 0.1 when the env var is unset — unchanged default.
+const SPRITE_SCALE = window.minari.scale;
 
 // Breathing reads as a faint chest swell only — no float, scale-only.
 const BREATH_PERIOD_S = 5;

@@ -9,6 +9,7 @@ import { BrowserWindow, screen } from 'electron';
 
 export function applyClickThrough(win: BrowserWindow, passThrough: boolean): void {
   if (win.isDestroyed()) return;
+  console.log('[click-through] ' + (passThrough ? 'pass-through' : 'interactive'));
   if (!passThrough) {
     win.setIgnoreMouseEvents(false);
   } else if (process.platform === 'darwin') {
@@ -26,12 +27,21 @@ const POLL_MS = 30;
 // renderer, which hit-tests them against the alpha mask. macOS is left alone —
 // forward:true already delivers the hover events there.
 export function startCursorPoll(win: BrowserWindow): void {
-  if (process.platform === 'darwin') return;
+  console.log('[cursor-poll] startCursorPoll platform=' + process.platform);
+  if (process.platform === 'darwin') {
+    console.log('[cursor-poll] skipped (darwin — forward:true handles hover)');
+    return;
+  }
 
   let timer: ReturnType<typeof setInterval> | null = null;
+  let ticks = 0;
 
   const tick = () => {
     if (win.isDestroyed() || win.isMinimized() || !win.isVisible()) return;
+    ticks++;
+    if (ticks === 1 || ticks % 100 === 0) {
+      console.log('[cursor-poll] tick #' + ticks);
+    }
     const cursor = screen.getCursorScreenPoint();
     const bounds = win.getBounds();
     win.webContents.send('minari:cursor', {
@@ -41,7 +51,10 @@ export function startCursorPoll(win: BrowserWindow): void {
   };
 
   const start = (): void => {
-    if (!timer) timer = setInterval(tick, POLL_MS);
+    if (!timer) {
+      timer = setInterval(tick, POLL_MS);
+      console.log('[cursor-poll] timer started');
+    }
   };
   const stop = (): void => {
     if (timer) {
@@ -57,5 +70,8 @@ export function startCursorPoll(win: BrowserWindow): void {
   win.on('show', start);
   win.on('closed', stop);
 
+  console.log(
+    '[cursor-poll] initial visible=' + win.isVisible() + ' minimized=' + win.isMinimized(),
+  );
   if (win.isVisible() && !win.isMinimized()) start();
 }

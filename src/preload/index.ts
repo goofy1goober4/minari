@@ -27,6 +27,9 @@ contextBridge.exposeInMainWorld('minari', {
   pose: ((p) => (p === 'reading' || p === 'diary' ? p : 'idle'))(
     process.env.MINARI_POSE,
   ) as 'idle' | 'reading' | 'diary',
+  // Render-scale override for low-res displays. MINARI_SCALE=0.085 etc.;
+  // defaults to 0.1 (behaviour unchanged when the env var is unset).
+  scale: ((s) => (Number.isFinite(s) && s > 0 ? s : 0.1))(Number(process.env.MINARI_SCALE)),
   speak: (): Promise<string> => ipcRenderer.invoke('minari:speak'),
   setClickThrough: (passThrough: boolean): void => {
     ipcRenderer.send('minari:set-click-through', passThrough);

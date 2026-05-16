@@ -121,6 +121,7 @@ function getCtx(): AudioContext | null {
 
 function loadAllSamples(audioCtx: AudioContext): Promise<void> {
   if (loadingPromise) return loadingPromise;
+  console.log('[mumble] loading samples from ' + new URL('./sounds/a.wav', document.baseURI).href);
   loadingPromise = Promise.all(
     ALL_SAMPLE_NAMES.map(async (name) => {
       try {
@@ -136,12 +137,15 @@ function loadAllSamples(audioCtx: AudioContext): Promise<void> {
         console.warn(`[mumble] failed to load sounds/${name}.wav:`, err);
       }
     }),
-  ).then(() => undefined);
+  ).then(() => {
+    console.log('[mumble] loaded ' + buffers.size + '/' + ALL_SAMPLE_NAMES.length + ' samples');
+  });
   return loadingPromise;
 }
 
 export function primeAudio() {
   const audioCtx = getCtx();
+  console.log('[mumble] primeAudio ctx=' + (audioCtx ? audioCtx.state : 'null'));
   if (audioCtx) void loadAllSamples(audioCtx);
 }
 
