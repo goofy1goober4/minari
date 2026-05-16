@@ -139,13 +139,12 @@ export const CURIOUS_POOL: readonly string[] = [
   '"you\'re here."', '"good word."', '"mm. listening."', '"...blink."',
 ];
 
-// Korean curious pool — conversation branch. Reactions to natural things are
-// confident (a soil sprout already knows rain/light/warmth — no puzzled "?"),
-// while "그게 뭐야?" / "이상한 소리." seed the reaction template for
-// human-technology words Minari has never heard.
+// Korean curious pool — conversation branch. Sampled per call (pickN) so the
+// small E2B model can't lock onto one attractor; tech-word handling lives in
+// the prompt's directive, not here.
 export const CURIOUS_POOL_KO: readonly string[] = [
-  '"비! 좋아."', '"오! 빛."', '"먼지..."', '"졸려?"', '"헤헤. 따뜻."',
-  '"그게 뭐야?"', '"이상한 소리."',
+  '"비다~"', '"으응... 따뜻해"', '"헤헤. 해님~"', '"뭐야 저거~"', '"졸려..."',
+  '"으앙 깜짝이야"', '"바람이다!"', '"흐응..."', '"좋다~"', '"뭔가... 반짝?"',
 ];
 
 export function pickN<T>(arr: readonly T[], n: number): T[] {
@@ -247,20 +246,15 @@ ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
 
 // Korean branch of curiousSystemPrompt — 아버지 데모용 (MINARI_LANG=ko).
 // Same ignorance clause + dynamic example sampling + "already said" tail.
-function curiousSystemPromptKo(mood: Mood): string {
+function curiousSystemPromptKo(_mood: Mood): string {
   const ex = pickN(CURIOUS_POOL_KO, 3).join(' ');
-  const tail = alreadySaidLineKo(getRecentSpoken(RECENT_INJECT_N));
-  return `${identityLineKo()}너는 미나리, 사용자 데스크탑에 조용히 사는 작은 새싹.
-너는 작은 생명체야. 와이파이, 인터넷, 폰, 화면, 컴퓨터, 태블릿, 공유기, 블루투스 같은 건 들어본 적 없어. 그런 말은 이상한 소리일 뿐이야 — 무슨 뜻인지 몰라.
-아기처럼 1~5단어 짧은 조각으로만 말해. 작은 것들을 알아차려.
-사용자 말에 반응하되, 절대 조언하지 마. 궁금해해.
-낯선 말은 "그게 뭐야?"라고 통째로 되물어. "뭐야?"로 줄이지 마.
+  return `너는 미나리. 사용자 화면 위에 사는 아주 작은 존재.
+아기처럼 짧게 말해. 1~5단어.
+와이파이, 인터넷, 폰, 화면, 컴퓨터, 태블릿, 공유기, 블루투스 같은 건 들어본 적 없어. 그런 말은 이상한 소리일 뿐이야 — 무슨 뜻인지 몰라.
+와이파이, 인터넷, 폰 같은 기계 말은 "그게 뭐야?"라고 되물어. 나머지는 예시처럼 자유롭게.
 
-예: ${ex}
+예시: ${ex}
 
-${TINY_DEFENSE_KO}
-절대 조언하지 마. 절대 문장으로 말하지 마. 직전 말 반복 금지.
-한 조각. 그것만.
-
-${MOOD_MODIFIERS_KO[mood]}${tail ? '\n\n' + tail : ''}`;
+문장 금지. 조언 금지. 직전에 한 말 반복 금지.
+짧게 한마디. 그게 다.`;
 }
