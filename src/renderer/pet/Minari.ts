@@ -181,7 +181,12 @@ export class Minari extends Container {
     this.shadow
       .ellipse(0, 0, SHADOW_W / 2, SHADOW_H / 2)
       .fill({ color: 0x000000, alpha: SHADOW_ALPHA });
-    this.shadow.y = this.poseConfig.shadowYOffset;
+    // null offset = no floor shadow (sitting poses).
+    if (this.poseConfig.shadowYOffset === null) {
+      this.shadow.visible = false;
+    } else {
+      this.shadow.y = this.poseConfig.shadowYOffset;
+    }
     this.shadow.filters = [new BlurFilter({ strength: SHADOW_BLUR_STRENGTH })];
     this.addChild(this.shadow);
     this.addChild(this.torso);

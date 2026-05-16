@@ -22,9 +22,9 @@ export interface PoseConfig {
   // Layers composited into the alpha hit-mask. Sitting poses are wider and
   // shorter than idle; the mask is rebuilt from these so the hit test follows.
   hitMaskSprites: SpriteName[];
-  // Foot/seat shadow Y offset (negative = up). The standing and sitting art
-  // meet the ground at different heights, so this is per-pose.
-  shadowYOffset: number;
+  // Foot shadow Y offset (negative = up); null hides the shadow entirely —
+  // a sitting character reads fine without a floor shadow.
+  shadowYOffset: number | null;
 }
 
 export const POSES: Record<Pose, PoseConfig> = {
@@ -44,8 +44,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     faceClosed: 'reading_book_face_closed',
     tilt: false,
     hitMaskSprites: ['sit_readingbook', 'reading_book_face_open'],
-    // Standing offset (-8) floated the shadow ~4px above the seat — drop it.
-    shadowYOffset: -4,
+    shadowYOffset: null, // sitting — no floor shadow
   },
   diary: {
     body: 'diary_body',
@@ -54,7 +53,6 @@ export const POSES: Record<Pose, PoseConfig> = {
     faceClosed: 'diary_face_closed',
     tilt: false,
     hitMaskSprites: ['diary_body', 'diary_face_open'],
-    // Best-guess sit value (same as reading) — verify diary on screen.
-    shadowYOffset: -4,
+    shadowYOffset: null, // sitting — no floor shadow
   },
 };
