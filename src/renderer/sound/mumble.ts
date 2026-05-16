@@ -201,6 +201,10 @@ export async function playMumble(text: string, profile: VoiceProfile) {
     const dur = buf.duration / playbackRate;
 
     const effectiveVol = globalMuted ? 0 : profile.volume * globalVolume;
+    console.log(
+      '[mumble] playing sample ' + sampleName +
+        ' gain=' + effectiveVol.toFixed(3) + ' rate=' + playbackRate.toFixed(2),
+    );
     scheduleSample(audioCtx, t, buf, playbackRate, effectiveVol);
 
     const gapS =
@@ -239,6 +243,10 @@ function scheduleSample(
 
   src.connect(gain);
   gain.connect(audioCtx.destination);
-  src.start(startAt);
-  src.stop(startAt + dur);
+  try {
+    src.start(startAt);
+    src.stop(startAt + dur);
+  } catch (err) {
+    console.warn('[mumble] start() failed:', err);
+  }
 }

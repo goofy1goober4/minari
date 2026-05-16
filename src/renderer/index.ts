@@ -85,6 +85,10 @@ async function boot() {
   let lpDownTime = 0;
   let dragging = false;
   let captureTarget: Element | null = null;
+  // While a press is in progress the cursor poll must not touch click-through:
+  // a poll-driven setIgnoreMouseEvents toggle drops the held pointer
+  // (pointerleave/cancel) and kills the long-press timer.
+  let isPointerDown = false;
 
   const clearLongpress = () => {
     if (lpTimer) {
@@ -276,7 +280,7 @@ async function boot() {
   window.minari.onCursor((pos) => {
     cursorMsgs++;
     if (cursorMsgs === 1) console.log('[cursor] first poll message received');
-    if (!clickThrough || mode !== 'idle' || generating) return;
+    if (isPointerDown || !clickThrough || mode !== 'idle' || generating) return;
     if (hitTest(pos.x, pos.y)) {
       console.log('[cursor] hit ' + Math.round(pos.x) + ',' + Math.round(pos.y) + ' → interactive');
       setClickThroughIfChanged(false);
@@ -289,6 +293,7 @@ async function boot() {
   });
 
   window.addEventListener('pointerdown', (e) => {
+    isPointerDown = true;
     console.log(
       '[gesture] pointerdown at ' +
         Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' mode=' + mode,
@@ -338,6 +343,7 @@ async function boot() {
   });
 
   window.addEventListener('pointerup', async (e) => {
+    isPointerDown = false;
     if (captureTarget) {
       try {
         captureTarget.releasePointerCapture(e.pointerId);
@@ -419,11 +425,20 @@ async function boot() {
     setClickThroughIfChanged(!hitTest(e.clientX, e.clientY));
   });
   window.addEventListener('pointerleave', () => {
+    isPointerDown = false;
     if (mode === 'birth') return;
     clearLongpress();
     sprout.onPointerLeave();
     if (mode === 'input') return; // keep input clickable even if cursor strays
     setClickThroughIfChanged(true);
+  });
+
+  // A pointercancel during a press would otherwise leave isPointerDown stuck.
+  // Logged so we can see whether the OS is cancelling the press on Windows.
+  window.addEventListener('pointercancel', () => {
+    console.log('[gesture] pointercancel');
+    isPointerDown = false;
+    clearLongpress();
   });
 
   window.addEventListener('dragover', (e) => {
