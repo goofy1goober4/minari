@@ -41,6 +41,9 @@ export class Bubble {
   }
 
   show(text: string) {
+    console.log(
+      '[bubble] show ' + JSON.stringify(text) + ' voice=' + (this.voice ? 'set' : 'null'),
+    );
     this.el.textContent = text;
     // Force layout so width/height are final before we anchor bottom-centre.
     const w = this.el.offsetWidth;

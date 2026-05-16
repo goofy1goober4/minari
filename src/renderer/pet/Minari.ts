@@ -59,6 +59,8 @@ const SHADOW_H = 12;
 const SHADOW_ALPHA = 0.15;
 const SHADOW_BREATH_AMP = 0.03;
 const SHADOW_BLUR_STRENGTH = 0.5;
+// Gap (px) between the head top and the speech bubble's bottom edge.
+const BUBBLE_GAP = 4;
 const BLINK_CLOSED_MS_DEFAULT = 150;
 const BLINK_CLOSED_MS_SLEEPY = 800;
 const BLINK_INTERVAL_JITTER_MS = 1500;
@@ -134,6 +136,7 @@ export class Minari extends Container {
 
   constructor(pose: Pose = 'idle') {
     super();
+    console.log('[minari] scale=' + SPRITE_SCALE + ' pose=' + pose);
     this.pose = pose;
     this.poseConfig = POSES[pose];
     const openSprites = [
@@ -334,6 +337,12 @@ export class Minari extends Container {
   setStemGrowth(_p: number): void {}
   setLeafUnfold(_p: number): void {}
   notice(): void {}
+
+  // Container-local y for the speech bubble's bottom edge — just above the
+  // head. Per-pose (sitting heads sit lower) and scales with SPRITE_SCALE.
+  bubbleAnchorY(): number {
+    return (this.poseConfig.headTopY - CANVAS_H) * SPRITE_SCALE - BUBBLE_GAP;
+  }
 
   nudge(): void {
     this.faceWobbleVel += NUDGE_IMPULSE;

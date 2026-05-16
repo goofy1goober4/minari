@@ -49,7 +49,7 @@ async function boot() {
   // Bubble follows the character; positioning is recomputed via syncBubble().
   const syncBubble = () => {
     bubble.x = sprout.x;
-    bubble.y = sprout.y - 200;
+    bubble.y = sprout.y + sprout.bubbleAnchorY();
   };
   syncBubble();
   // Bubble is a DOM overlay (mounted in its constructor); not a stage child.
@@ -82,6 +82,7 @@ async function boot() {
   let lpFired = false;
   let lpStartX = 0;
   let lpStartY = 0;
+  let lpDownTime = 0;
   let dragging = false;
   let captureTarget: Element | null = null;
 
@@ -288,6 +289,10 @@ async function boot() {
   });
 
   window.addEventListener('pointerdown', (e) => {
+    console.log(
+      '[gesture] pointerdown at ' +
+        Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' mode=' + mode,
+    );
     primeAudio();
     if (mode !== 'idle') return;
     sprout.nudge();
@@ -304,6 +309,7 @@ async function boot() {
     lpArmed = true;
     lpStartX = e.clientX;
     lpStartY = e.clientY;
+    lpDownTime = performance.now();
 
     // Long-press timer only arms in curious; babble's tap path waits for
     // pointerup either way (so window-drag can still preempt it).
@@ -313,8 +319,10 @@ async function boot() {
         lpArmed = false;
         lpFired = true;
         lpTimer = null;
+        console.log('[gesture] longpress fired');
         void openCuriousPrompt();
       }, LONGPRESS_MS);
+      console.log('[gesture] longpress timer started');
     }
 
     // Capture the pointer so a fast drag past the window edge still routes
@@ -350,6 +358,10 @@ async function boot() {
     }
     if (!lpArmed) return;
     clearLongpress();
+    console.log(
+      '[gesture] pointerup before longpress (duration=' +
+        Math.round(performance.now() - lpDownTime) + 'ms)',
+    );
     if (bubble.isVisible() || generating) return;
     await speakAndShow();
   });

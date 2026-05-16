@@ -25,6 +25,9 @@ export interface PoseConfig {
   // Foot shadow Y offset (negative = up); null hides the shadow entirely —
   // a sitting character reads fine without a floor shadow.
   shadowYOffset: number | null;
+  // Head top in canvas px (alpha-bbox top of faceDefault). Anchors the speech
+  // bubble above the head; scales with SPRITE_SCALE so it tracks any pose/size.
+  headTopY: number;
 }
 
 export const POSES: Record<Pose, PoseConfig> = {
@@ -36,6 +39,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     tilt: true,
     hitMaskSprites: ['body', 'sprout', 'face_front_open'],
     shadowYOffset: -8,
+    headTopY: 42,
   },
   reading: {
     body: 'sit_readingbook',
@@ -45,6 +49,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     tilt: false,
     hitMaskSprites: ['sit_readingbook', 'reading_book_face_open'],
     shadowYOffset: null, // sitting — no floor shadow
+    headTopY: 549,
   },
   diary: {
     body: 'diary_body',
@@ -54,5 +59,6 @@ export const POSES: Record<Pose, PoseConfig> = {
     tilt: false,
     hitMaskSprites: ['diary_body', 'diary_face_open'],
     shadowYOffset: null, // sitting — no floor shadow
+    headTopY: 609,
   },
 };

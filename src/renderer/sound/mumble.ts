@@ -162,6 +162,7 @@ function pickSampleName(ch: string): string | null {
 }
 
 export async function playMumble(text: string, profile: VoiceProfile) {
+  console.log('[mumble] play triggered, text=' + JSON.stringify(text));
   const audioCtx = getCtx();
   if (!audioCtx) return;
   await loadAllSamples(audioCtx);

@@ -46,6 +46,16 @@ export function createPetWindow(): BrowserWindow {
   // in main and let the renderer hit-test it. No-op on macOS.
   startCursorPoll(win);
 
+  // On Windows the constructor's alwaysOnTop lets a click-through window slip
+  // behind whatever the user clicks next. A higher level + a re-assert on
+  // blur keeps Minari pinned. macOS keeps the plain constructor flag.
+  if (process.platform === 'win32') {
+    win.setAlwaysOnTop(true, 'screen-saver');
+    win.on('blur', () => {
+      if (!win.isDestroyed()) win.setAlwaysOnTop(true, 'screen-saver');
+    });
+  }
+
   // Persist position 500 ms after the last move so a drag survives a crash
   // and we don't depend on the will-quit hook (windows may be destroyed by
   // then). Debounce so a single drag doesn't fan out hundreds of writes.
