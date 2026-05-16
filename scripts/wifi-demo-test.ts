@@ -346,7 +346,7 @@ async function main() {
   }
 
   if (process.env.VARIANT_KOIMG === '1') {
-    const imgPath = process.env.IMG_PATH ?? 'assets/sprites/minari.png';
+    const imgPath = process.env.IMG_PATH ?? 'assets/sprites/body.png';
     const b64 = readFileSync(imgPath).toString('base64');
     console.log(`KOREAN VISION SMOKE — buildImageSystemKo · image=${imgPath} (${b64.length} b64 chars)\n`);
     for (let i = 1; i <= 5; i++) {
