@@ -149,26 +149,56 @@ export function primeAudio() {
   if (audioCtx) void loadAllSamples(audioCtx);
 }
 
-function pickSampleName(ch: string): string | null {
+function randOf<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// 중성(vowel jamo) index 0..20 → vowel sample. Compound vowels fall back to
+// their dominant sound (ㅘ→a, ㅝ→o, ㅟ/ㅢ→i, …).
+//                       ㅏ   ㅐ   ㅑ   ㅒ   ㅓ   ㅔ   ㅕ   ㅖ   ㅗ   ㅘ   ㅙ
+const JUNGSEONG_SAMPLE = ['a', 'e', 'a', 'e', 'o', 'e', 'o', 'e', 'o', 'a', 'e',
+  //                     ㅚ   ㅛ   ㅜ   ㅝ   ㅞ   ㅟ   ㅠ   ㅡ   ㅢ   ㅣ
+  'e', 'o', 'u', 'o', 'e', 'i', 'u', 'u', 'i', 'i'] as const;
+
+// 초성(initial consonant jamo) index 0..18 → consonant sample.
+function hangulConsonant(choseong: number): string {
+  if (choseong === 2 || choseong === 6) return randOf(NASAL_SAMPLES); // ㄴ ㅁ
+  if (choseong === 1 || choseong === 4 || choseong === 8) {
+    return randOf(['dda', 'bba', 'gga']); // ㄲ ㄸ ㅃ — tense
+  }
+  if (choseong === 18) return randOf(['ha', 'ho', 'hi']); // ㅎ — aspirate
+  return randOf(CONSONANT_SAMPLES);
+}
+
+// One char → the sample names to voice, in order. Latin: 1 sample. Hangul
+// syllable: 초성 consonant + 중성 vowel. Anything else: nothing.
+function pickSampleName(ch: string): string[] {
+  const code = ch.codePointAt(0) ?? 0;
+  if (code >= 0xac00 && code <= 0xd7a3) {
+    const s = code - 0xac00;
+    return [hangulConsonant(Math.floor(s / 588)), JUNGSEONG_SAMPLE[Math.floor((s % 588) / 28)]];
+  }
   const lower = ch.toLowerCase();
-  if (VOWELS.has(lower)) return lower;
-  if (lower === 'm' || lower === 'n') {
-    return NASAL_SAMPLES[Math.floor(Math.random() * NASAL_SAMPLES.length)];
-  }
-  if (/[a-z]/.test(lower)) {
-    return CONSONANT_SAMPLES[Math.floor(Math.random() * CONSONANT_SAMPLES.length)];
-  }
-  return null;
+  if (VOWELS.has(lower)) return [lower];
+  if (lower === 'm' || lower === 'n') return [randOf(NASAL_SAMPLES)];
+  if (/[a-z]/.test(lower)) return [randOf(CONSONANT_SAMPLES)];
+  return [];
 }
 
 export async function playMumble(text: string, profile: VoiceProfile) {
   console.log('[mumble] play triggered, text=' + JSON.stringify(text));
   const audioCtx = getCtx();
-  if (!audioCtx) return;
+  if (!audioCtx) {
+    console.log('[mumble] play skipped: reason=no-audiocontext');
+    return;
+  }
   await loadAllSamples(audioCtx);
 
   let t = audioCtx.currentTime + 0.005;
   const lastVoiced = findLastVoiced(text);
+  let mapped = 0; // chars that resolved to a sample name
+  let missingBuf = 0; // mapped chars whose sample buffer was not loaded
+  let scheduled = 0; // samples actually handed to scheduleSample
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
@@ -182,41 +212,64 @@ export async function playMumble(text: string, profile: VoiceProfile) {
       continue;
     }
 
-    const sampleName = pickSampleName(ch);
-    if (!sampleName) {
+    // One char → 1 sample (Latin) or 2 (Hangul: consonant + vowel).
+    const names = pickSampleName(ch);
+    if (names.length === 0) {
       t += profile.charGapMs / 1000;
       continue;
     }
-    const buf = buffers.get(sampleName);
-    if (!buf) {
-      t += profile.charGapMs / 1000;
-      continue;
+    mapped++;
+
+    for (const name of names) {
+      const buf = buffers.get(name);
+      if (!buf) {
+        missingBuf++;
+        t += profile.charGapMs / 1000;
+        continue;
+      }
+
+      let pitchHz = profile.basePitchHz;
+      pitchHz += (Math.random() - 0.5) * PITCH_JITTER_HZ;
+      if (profile.endRise && i === lastVoiced) pitchHz *= 1.2;
+
+      const playbackRate = (pitchHz / SAMPLE_REFERENCE_HZ) * PLAYBACK_RATE_MULTIPLIER;
+      const dur = buf.duration / playbackRate;
+
+      const effectiveVol = globalMuted ? 0 : profile.volume * globalVolume;
+      console.log(
+        '[mumble] playing sample ' + name +
+          ' gain=' + effectiveVol.toFixed(3) + ' rate=' + playbackRate.toFixed(2),
+      );
+      scheduleSample(audioCtx, t, buf, playbackRate, effectiveVol);
+      scheduled++;
+
+      const gapS =
+        (profile.charGapMs * (1 - GAP_JITTER / 2 + Math.random() * GAP_JITTER)) / 1000;
+      const advance = Math.max(dur / 2, dur + gapS - SYLLABLE_OVERLAP_S);
+      t += advance;
     }
+  }
 
-    let pitchHz = profile.basePitchHz;
-    pitchHz += (Math.random() - 0.5) * PITCH_JITTER_HZ;
-    if (profile.endRise && i === lastVoiced) pitchHz *= 1.2;
-
-    const playbackRate = (pitchHz / SAMPLE_REFERENCE_HZ) * PLAYBACK_RATE_MULTIPLIER;
-    const dur = buf.duration / playbackRate;
-
-    const effectiveVol = globalMuted ? 0 : profile.volume * globalVolume;
+  if (scheduled === 0) {
+    // pickSampleName only maps Latin a-z — Korean (Hangul) text resolves to
+    // no sample, so nothing is voiced. mapped=0 is exactly that case.
+    const reason =
+      mapped === 0
+        ? 'no-voiced-chars (text maps to no sample — Hangul unsupported?)'
+        : missingBuf > 0
+          ? 'sample-buffers-missing'
+          : 'unknown';
     console.log(
-      '[mumble] playing sample ' + sampleName +
-        ' gain=' + effectiveVol.toFixed(3) + ' rate=' + playbackRate.toFixed(2),
+      '[mumble] play skipped: reason=' + reason +
+        ' (mapped=' + mapped + ' buffers=' + buffers.size + ')',
     );
-    scheduleSample(audioCtx, t, buf, playbackRate, effectiveVol);
-
-    const gapS =
-      (profile.charGapMs * (1 - GAP_JITTER / 2 + Math.random() * GAP_JITTER)) / 1000;
-    const advance = Math.max(dur / 2, dur + gapS - SYLLABLE_OVERLAP_S);
-    t += advance;
   }
 }
 
 function findLastVoiced(text: string): number {
   for (let i = text.length - 1; i >= 0; i--) {
-    if (/[a-zA-Z]/.test(text[i])) return i;
+    // Latin letters + Hangul syllables both carry the end-rise intonation.
+    if (/[a-zA-Z가-힣]/.test(text[i])) return i;
   }
   return -1;
 }

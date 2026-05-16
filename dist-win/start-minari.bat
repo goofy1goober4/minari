@@ -3,6 +3,9 @@ chcp 65001 >nul
 cd /d "%~dp0"
 set MINARI_MODEL=gemma4:e2b
 set MINARI_LANG=ko
+set MINARI_STAGE=curious
+set MINARI_SCALE=0.085
+set MINARI_DEVTOOLS=1
 set "MODEL=models\gemma-4-E2B-it-Q4_K_M.gguf"
 set "MMPROJ=models\mmproj-F16.gguf"
 
