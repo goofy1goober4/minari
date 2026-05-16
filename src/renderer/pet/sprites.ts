@@ -1,4 +1,4 @@
-import { Assets, Texture } from 'pixi.js';
+import { ImageSource, Texture } from 'pixi.js';
 
 export type SpriteName =
   | 'body'
@@ -23,20 +23,19 @@ const FILE_FOR: Record<SpriteName, string> = {
   face_front_tiltR: '/sprites/face_front_tiltR.png',
 };
 
-// Vite/electron-vite serves missing static paths as the SPA fallback HTML in
-// dev, so a naive Assets.load can succeed with an empty/text texture instead
-// of erroring. Probe with HEAD + content-type before committing.
-async function tryFetchTexture(url: string): Promise<Texture | null> {
-  try {
-    const head = await fetch(url, { method: 'HEAD' });
-    if (!head.ok) return null;
-    const ct = head.headers.get('content-type') || '';
-    if (!ct.startsWith('image/')) return null;
-    const tex = await Assets.load<Texture>(url);
-    return tex ?? null;
-  } catch {
-    return null;
-  }
+// Load through a plain HTMLImageElement rather than PixiJS Assets.load.
+// Assets.load mangled the URL on the packaged build — it dropped the
+// "/sprites/" path segment (requesting /body.png instead of /sprites/body.png)
+// and every sprite fell back to the placeholder box. <img> resolves the URL
+// straight against the document origin, so it works under both the dev http
+// server and the production app:// scheme.
+function loadImageEl(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
 }
 
 export interface PlaceholderSpec {
@@ -55,8 +54,11 @@ export async function loadSprite(
   name: SpriteName,
   placeholder: PlaceholderSpec,
 ): Promise<LoadedSprite> {
-  const tex = await tryFetchTexture(FILE_FOR[name]);
-  if (tex) return { texture: tex, isPlaceholder: false };
+  const img = await loadImageEl(FILE_FOR[name]);
+  if (img) {
+    const texture = new Texture({ source: new ImageSource({ resource: img }) });
+    return { texture, isPlaceholder: false };
+  }
   // Placeholder shares Pixi's 1×1 white texture; the caller applies width/
   // height/tint on the Sprite directly, since we have no renderer reference
   // here to bake a custom RenderTexture.

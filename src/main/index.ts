@@ -1,4 +1,6 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, protocol } from 'electron';
+import { join, extname } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { createPetWindow } from './window';
 import { openDb, closeDb } from './memory/db';
 import { getState, setState } from './memory/repo';
@@ -9,6 +11,19 @@ import { startAlarmServer, stopAlarmServer } from './alarm/server';
 import { maybeWriteDiary } from './diary';
 import { setPetName, setUserNickname } from './llm/identity';
 
+// Custom standard scheme for the renderer's own bundled assets. The production
+// renderer is served from app:// instead of file://, because file:// blocks
+// fetch() and resolves absolute paths (/sprites/*.png) to the filesystem root
+// — which left every sprite as an empty placeholder box on the packaged build.
+// registerSchemesAsPrivileged must run before app 'ready', so it sits here at
+// module top level.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app',
+    privileges: { standard: true, secure: true, supportFetchAPI: true },
+  },
+]);
+
 function getCurrentWebContents() {
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed()) return w.webContents;
@@ -16,7 +31,44 @@ function getCurrentWebContents() {
   return null;
 }
 
+// MIME map for the app:// handler. content-type matters: the sprite loader
+// rejects any response whose type is not image/*.
+const MIME: Record<string, string> = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.wav': 'audio/wav',
+  '.mp3': 'audio/mpeg',
+  '.woff2': 'font/woff2',
+};
+
 app.whenReady().then(() => {
+  // Serve app://bundle/<path> from the packed renderer directory (reads inside
+  // the asar fine). fs.readFile rather than net.fetch — net.fetch's file:
+  // support is unreliable and silently 404'd every sub-resource fetch.
+  protocol.handle('app', async (request) => {
+    const { pathname } = new URL(request.url);
+    const rel = pathname === '/' ? '/index.html' : pathname;
+    const file = join(__dirname, '../renderer', decodeURIComponent(rel));
+    try {
+      const data = await readFile(file);
+      return new Response(new Uint8Array(data), {
+        headers: { 'content-type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream' },
+      });
+    } catch {
+      console.error('[protocol] 404 ' + request.method + ' ' + pathname + ' -> ' + file);
+      return new Response('not found', { status: 404 });
+    }
+  });
+
   openDb();
   loadIdentity();
   registerIpc();

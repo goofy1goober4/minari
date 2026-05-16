@@ -69,7 +69,16 @@ export function createPetWindow(): BrowserWindow {
   if (devUrl) {
     win.loadURL(devUrl);
   } else {
-    win.loadFile(join(__dirname, '../renderer/index.html'));
+    // app:// (custom standard scheme registered in index.ts) — not file://,
+    // so the renderer can fetch its own /sprites, /sounds, etc.
+    win.loadURL('app://bundle/index.html');
+  }
+
+  // Diagnostics on the packaged build: MINARI_DEVTOOLS=1 pops DevTools in a
+  // detached window. The pet window is click-through, so the usual shortcut
+  // is unreliable — this gives a dependable way in.
+  if (process.env['MINARI_DEVTOOLS'] === '1') {
+    win.webContents.openDevTools({ mode: 'detach' });
   }
 
   return win;
