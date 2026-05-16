@@ -20,6 +20,7 @@ declare global {
       ): Promise<{ nickname: string; petName: string; firstFragment: string }>;
       getBootState(): Promise<BootState>;
       onPing(callback: (fragment: string) => void): () => void;
+      onCursor(callback: (pos: { x: number; y: number }) => void): () => void;
       onWordQuestion(
         callback: (payload: { wordId: number; question: string }) => void,
       ): () => void;

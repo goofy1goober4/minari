@@ -1,4 +1,5 @@
 import { ipcMain, BrowserWindow, app } from 'electron';
+import { applyClickThrough } from './pointerBridge';
 import { speakAsMinari } from './llm/speak';
 import { handleUserInput } from './llm/converse';
 import { BirthStateMachine } from './birth';
@@ -219,10 +220,7 @@ export function registerIpc() {
   ipcMain.on('minari:set-click-through', (event, passThrough: boolean) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return;
-    if (passThrough) {
-      win.setIgnoreMouseEvents(true, { forward: true });
-    } else {
-      win.setIgnoreMouseEvents(false);
-    }
+    // Platform-correct setIgnoreMouseEvents (forward:true on macOS only).
+    applyClickThrough(win, passThrough);
   });
 }

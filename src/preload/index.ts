@@ -39,6 +39,14 @@ contextBridge.exposeInMainWorld('minari', {
     ipcRenderer.on('minari:ping', listener);
     return () => ipcRenderer.removeListener('minari:ping', listener);
   },
+  // Windows-only: main polls the OS cursor and pushes window-relative coords
+  // here so the renderer can hit-test a click-through window. Never fires on
+  // macOS (main does not start the poll there).
+  onCursor: (callback: (pos: { x: number; y: number }) => void): (() => void) => {
+    const listener = (_event: IpcRendererEvent, pos: { x: number; y: number }) => callback(pos);
+    ipcRenderer.on('minari:cursor', listener);
+    return () => ipcRenderer.removeListener('minari:cursor', listener);
+  },
   onWordQuestion: (
     callback: (payload: { wordId: number; question: string }) => void,
   ): (() => void) => {

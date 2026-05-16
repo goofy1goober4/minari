@@ -1,6 +1,7 @@
 import { BrowserWindow, screen } from 'electron';
 import { join } from 'node:path';
 import { getState, setState } from './memory/repo';
+import { applyClickThrough, startCursorPoll } from './pointerBridge';
 
 export function createPetWindow(): BrowserWindow {
   const { workArea } = screen.getPrimaryDisplay();
@@ -39,7 +40,11 @@ export function createPetWindow(): BrowserWindow {
   // the cursor sits on an opaque sprite pixel (alpha hit test on body +
   // sprout + face_front_open). No window-bounds poll — that would catch
   // transparent area too.
-  win.setIgnoreMouseEvents(true, { forward: true });
+  applyClickThrough(win, true);
+
+  // Windows can't forward hover to a click-through window — poll the cursor
+  // in main and let the renderer hit-test it. No-op on macOS.
+  startCursorPoll(win);
 
   // Persist position 500 ms after the last move so a drag survives a crash
   // and we don't depend on the will-quit hook (windows may be destroyed by

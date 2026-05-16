@@ -253,6 +253,18 @@ async function boot() {
     void openCuriousPromptForced();
   });
 
+  // Windows cursor poll. macOS forwards hover via forward:true; Windows does
+  // not, so a click-through window gets no pointermove and the hit-test below
+  // never runs. Main polls the cursor and pushes coords here. This acts only
+  // as the entry detector — it flips click-through OFF when the cursor lands
+  // on Minari. Once click-through is off the real pointermove/leave handlers
+  // are authoritative (they know about drag + input mode), so we stay out
+  // while clickThrough is false. Never fires on macOS (no poll there).
+  window.minari.onCursor((pos) => {
+    if (!clickThrough || mode !== 'idle' || generating) return;
+    if (hitTest(pos.x, pos.y)) setClickThroughIfChanged(false);
+  });
+
   app.ticker.add((ticker) => {
     sprout.breathe(ticker.deltaMS);
     bubble.update(ticker.deltaMS);
