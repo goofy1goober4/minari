@@ -56,7 +56,16 @@ export async function loadSprite(
 ): Promise<LoadedSprite> {
   const img = await loadImageEl(FILE_FOR[name]);
   if (img) {
-    const texture = new Texture({ source: new ImageSource({ resource: img }) });
+    const texture = new Texture({
+      source: new ImageSource({
+        resource: img,
+        // The 1300×2000 source art is drawn at ~130px wide (≈10× minification).
+        // Linear filtering alone aliases hard at that ratio on low-res /
+        // integrated-GPU displays; mipmaps give a clean trilinear downscale.
+        scaleMode: 'linear',
+        autoGenerateMipmaps: true,
+      }),
+    });
     return { texture, isPlaceholder: false };
   }
   // Placeholder shares Pixi's 1×1 white texture; the caller applies width/
