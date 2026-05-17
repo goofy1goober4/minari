@@ -167,11 +167,15 @@ async function boot() {
     hideDiaryHint();
     sprout.startle();
     sprout.setPeekFace('surprise');
+    sprout.pausePencil();
     bubble.show(entry);
     diaryPeekActive = true;
     // Hold the startled face briefly, then drop into a flustered fast-blink.
     window.setTimeout(() => {
-      if (!diaryPeekActive) return;
+      if (!diaryPeekActive) {
+        sprout.resumePencil();
+        return;
+      }
       sprout.setPeekFace(null);
       sprout.flusterBlink();
     }, DIARY_PEEK_SURPRISE_MS);

@@ -27,6 +27,9 @@ const PENCIL_FIST_X = 513;
 const PENCIL_FIST_Y = 1479;
 const PENCIL_SWING_RAD = 0.14;
 const PENCIL_PERIOD_S = 0.75;
+// After a diary peek's flustered blink, the scribble waits this long before
+// picking back up.
+const PENCIL_RESUME_DELAY_MS = 300;
 
 // Sprout sway: spring-driven so it lags a slow-moving target — gives elasticity
 // rather than the mechanical sine the first pass had.
@@ -141,6 +144,11 @@ export class Minari extends Container {
   private peekFace: 'surprise' | null = null;
   // Remaining fast "flustered" blinks queued by a diary peek.
   private flusterBlinksLeft = 0;
+  // Diary pencil scribble — own clock so it can freeze + resume seamlessly
+  // during a peek (elapsedMs keeps running; this doesn't while paused).
+  private pencilElapsedMs = 0;
+  private pencilPaused = false;
+  private pencilResumeAtMs = 0;
 
   // Auto-tilt state — currentTiltDir non-null means we're holding a tilt now.
   private currentTiltDir: 'tiltL' | 'tiltR' | null = null;
@@ -415,6 +423,17 @@ export class Minari extends Container {
     this.scheduleNextBlink();
   }
 
+  // Diary peek freezes the pencil scribble on the startle; it resumes a beat
+  // after the flustered blink (see tickBlink), or immediately via resumePencil.
+  pausePencil(): void {
+    this.pencilPaused = true;
+    this.pencilResumeAtMs = 0;
+  }
+  resumePencil(): void {
+    this.pencilPaused = false;
+    this.pencilResumeAtMs = 0;
+  }
+
   // Container-local y for the speech bubble's bottom edge — just above the
   // head. Per-pose (sitting heads sit lower) and scales with SPRITE_SCALE.
   bubbleAnchorY(): number {
@@ -461,10 +480,23 @@ export class Minari extends Container {
     this.sproutSprite.rotation = this.sproutAng;
 
     // Diary pencil — wobbles left-right about the fist (the hand holds
-    // position) for a scribbling feel. Runs only while the diary pose is active.
+    // position). Frozen while a diary peek startles her, resuming a beat
+    // after the flustered blink. Its own clock so freeze/resume has no jump.
     if (this.pencilSprite.visible) {
-      this.pencilSprite.rotation =
-        Math.sin((t * 2 * Math.PI) / PENCIL_PERIOD_S) * PENCIL_SWING_RAD;
+      if (
+        this.pencilPaused &&
+        this.pencilResumeAtMs > 0 &&
+        this.elapsedMs >= this.pencilResumeAtMs
+      ) {
+        this.pencilPaused = false;
+        this.pencilResumeAtMs = 0;
+      }
+      if (!this.pencilPaused) {
+        this.pencilElapsedMs += deltaMS;
+        const pt = this.pencilElapsedMs / 1000;
+        this.pencilSprite.rotation =
+          Math.sin((pt * 2 * Math.PI) / PENCIL_PERIOD_S) * PENCIL_SWING_RAD;
+      }
     }
 
     // Wobble springs (face + body, both damped).
@@ -567,7 +599,13 @@ export class Minari extends Container {
         break;
       case 'fade_open':
         this.blinkPhase = 'idle';
-        if (this.flusterBlinksLeft > 0) this.flusterBlinksLeft--;
+        if (this.flusterBlinksLeft > 0) {
+          this.flusterBlinksLeft--;
+          // Last flustered blink done — let the pencil pick back up shortly.
+          if (this.flusterBlinksLeft === 0 && this.pencilPaused) {
+            this.pencilResumeAtMs = this.elapsedMs + PENCIL_RESUME_DELAY_MS;
+          }
+        }
         this.scheduleNextBlink();
         break;
     }
