@@ -17,6 +17,9 @@ export interface PoseConfig {
   faceHalf: SpriteName | null;
   // Eyes-closed face (blink hold).
   faceClosed: SpriteName;
+  // Writing-hand overlay (diary pose). null = no pencil layer; when set it
+  // sits between body and face and jitters in breathe(). See Minari.pencilSprite.
+  pencil: SpriteName | null;
   // Auto-tilt — idle only; a sitting character tilting its head reads as odd.
   tilt: boolean;
   // Layers composited into the alpha hit-mask. Sitting poses are wider and
@@ -36,6 +39,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     faceDefault: 'face_front_open',
     faceHalf: null,
     faceClosed: 'face_front_closed',
+    pencil: null,
     tilt: true,
     hitMaskSprites: ['body', 'sprout', 'face_front_open'],
     shadowYOffset: -8,
@@ -46,6 +50,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     faceDefault: 'reading_book_face_open',
     faceHalf: 'reading_book_face_half',
     faceClosed: 'reading_book_face_closed',
+    pencil: null,
     tilt: false,
     hitMaskSprites: ['sit_readingbook', 'reading_book_face_open'],
     shadowYOffset: null, // sitting — no floor shadow
@@ -56,6 +61,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     faceDefault: 'diary_face_open',
     faceHalf: 'diary_face_half',
     faceClosed: 'diary_face_closed',
+    pencil: 'diary_pencil',
     tilt: false,
     hitMaskSprites: ['diary_body', 'diary_face_open'],
     shadowYOffset: null, // sitting — no floor shadow

@@ -19,7 +19,8 @@ export type SpriteName =
   | 'diary_body'
   | 'diary_face_open'
   | 'diary_face_half'
-  | 'diary_face_closed';
+  | 'diary_face_closed'
+  | 'diary_pencil';
 
 export const FILE_FOR: Record<SpriteName, string> = {
   body: '/sprites/body.png',
@@ -39,6 +40,7 @@ export const FILE_FOR: Record<SpriteName, string> = {
   diary_face_open: '/sprites/diary_face_open.png',
   diary_face_half: '/sprites/diary_face_half.png',
   diary_face_closed: '/sprites/diary_face_closed.png',
+  diary_pencil: '/sprites/diary_pencil.png',
 };
 
 // Load through a plain HTMLImageElement rather than PixiJS Assets.load.

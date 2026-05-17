@@ -19,6 +19,15 @@ const BREATH_PERIOD_S = 5;
 const BREATH_Y_AMP_PX = 0;
 const BREATH_SCALE_AMP = 0.005;
 
+// Diary pencil — the pencil wobbles left-right about the fist so it reads as
+// scribbling while the hand holds position. PENCIL_FIST_* is the fist centre
+// in diary_pencil.png canvas px (measured from its alpha mask); the sprite is
+// anchored there so rotation pivots on the grip instead of sliding the hand.
+const PENCIL_FIST_X = 513;
+const PENCIL_FIST_Y = 1479;
+const PENCIL_SWING_RAD = 0.14;
+const PENCIL_PERIOD_S = 0.75;
+
 // Sprout sway: spring-driven so it lags a slow-moving target — gives elasticity
 // rather than the mechanical sine the first pass had.
 const SPROUT_SWAY_PERIOD_S = 2.5;
@@ -99,6 +108,8 @@ export class Minari extends Container {
   // Discrete mid-blink frame — used by the diary pose; alpha 0 otherwise.
   private faceHalf = new Sprite(Texture.WHITE);
   private sproutSprite = new Sprite(Texture.WHITE);
+  // Writing-hand overlay — visible + animated only in the diary pose.
+  private pencilSprite = new Sprite(Texture.WHITE);
 
   private faceTextures: Partial<Record<SpriteName, LoadedSprite>> = {};
   private faceDir: FaceDir = 'front';
@@ -163,11 +174,21 @@ export class Minari extends Container {
     applyPlaceholder(this.faceClosed, PLACEHOLDER.face);
     applyPlaceholder(this.faceHalf, PLACEHOLDER.face);
     applyPlaceholder(this.sproutSprite, PLACEHOLDER.sprout);
+    applyPlaceholder(this.pencilSprite, PLACEHOLDER.body);
+    // The pencil rotates about the fist (measured from the diary_pencil.png
+    // alpha mask) so the hand holds position while the tip wobbles. Anchoring
+    // there pivots rotation on the grip; x/y compensate so the art still lands
+    // where a (0.5, 1)-anchored layer would.
+    this.pencilSprite.anchor.set(PENCIL_FIST_X / CANVAS_W, PENCIL_FIST_Y / CANVAS_H);
+    this.pencilSprite.x = (PENCIL_FIST_X - CANVAS_W / 2) * SPRITE_SCALE;
+    this.pencilSprite.y = (PENCIL_FIST_Y - CANVAS_H) * SPRITE_SCALE;
 
     // Sprout layer disabled — body.png already contains the drawn sprout, so a
     // separate overlay just duplicates it. Kept in the tree so the rotation
     // wiring/animation state can be re-enabled later without churn.
     this.sproutSprite.visible = false;
+    // Pencil shows only once the diary pose's layers load (loadPoseLayers).
+    this.pencilSprite.visible = false;
 
     this.faceClosed.alpha = 0;
     this.faceHalf.alpha = 0;
@@ -177,7 +198,8 @@ export class Minari extends Container {
     this.faceOpenSprites.front.alpha = 1;
 
     this.faceLayer.addChild(...openSprites, this.faceHalf, this.faceClosed, this.sproutSprite);
-    this.torso.addChild(this.body, this.faceLayer);
+    // Layer order: body → pencil (writing hand) → face.
+    this.torso.addChild(this.body, this.pencilSprite, this.faceLayer);
 
     // Shadow sits at the feet (container origin = anchor bottom) and renders
     // below the torso. Drawn once; breathe() scales it horizontally each tick.
@@ -265,8 +287,11 @@ export class Minari extends Container {
     const cfg = this.poseConfig;
     const names: SpriteName[] = [cfg.body, cfg.faceDefault, cfg.faceClosed];
     if (cfg.faceHalf) names.push(cfg.faceHalf);
+    if (cfg.pencil) names.push(cfg.pencil);
     const loaded = await Promise.all(
-      names.map((n) => loadSprite(n, n === cfg.body ? PLACEHOLDER.body : PLACEHOLDER.face)),
+      names.map((n) =>
+        loadSprite(n, n === cfg.body || n === cfg.pencil ? PLACEHOLDER.body : PLACEHOLDER.face),
+      ),
     );
     const at = (n: SpriteName): LoadedSprite => loaded[names.indexOf(n)];
     applyLoaded(this.body, at(cfg.body));
@@ -274,6 +299,11 @@ export class Minari extends Container {
     applyLoaded(this.faceOpenSprites.front, at(cfg.faceDefault));
     applyLoaded(this.faceClosed, at(cfg.faceClosed));
     if (cfg.faceHalf) applyLoaded(this.faceHalf, at(cfg.faceHalf));
+    // Diary writing hand — load + show; other poses leave it hidden.
+    if (cfg.pencil) {
+      applyLoaded(this.pencilSprite, at(cfg.pencil));
+      this.pencilSprite.visible = true;
+    }
     console.log(
       '[minari] pose=' +
         this.pose +
@@ -380,6 +410,13 @@ export class Minari extends Container {
     this.sproutVel += sproutAccel * dt;
     this.sproutAng += this.sproutVel * dt;
     this.sproutSprite.rotation = this.sproutAng;
+
+    // Diary pencil — wobbles left-right about the fist (the hand holds
+    // position) for a scribbling feel. Runs only while the diary pose is active.
+    if (this.pencilSprite.visible) {
+      this.pencilSprite.rotation =
+        Math.sin((t * 2 * Math.PI) / PENCIL_PERIOD_S) * PENCIL_SWING_RAD;
+    }
 
     // Wobble springs (face + body, both damped).
     this.faceWobbleVel +=
