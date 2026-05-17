@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('minari', {
   // Render-scale override for low-res displays. MINARI_SCALE=0.085 etc.;
   // defaults to 0.1 (behaviour unchanged when the env var is unset).
   scale: ((s) => (Number.isFinite(s) && s > 0 ? s : 0.1))(Number(process.env.MINARI_SCALE)),
+  // Gates the [gesture]/[mumble]/[birth] debug logs in the renderer (main-
+  // process [cursor-poll] logs read process.env directly). Set MINARI_DEVTOOLS=1.
+  devtools: process.env.MINARI_DEVTOOLS === '1',
   speak: (): Promise<string> => ipcRenderer.invoke('minari:speak'),
   setClickThrough: (passThrough: boolean): void => {
     ipcRenderer.send('minari:set-click-through', passThrough);

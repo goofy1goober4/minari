@@ -15,6 +15,9 @@ const DIARY_PEEK_SURPRISE_MS = 900;
 // (session-local count).
 const DIARY_HINT_DELAY_MS = 200;
 const DIARY_HINT_MAX = 3;
+// Idle hover hint — a "hold to talk" nudge; same dwell + retire rules.
+const IDLE_HINT_DELAY_MS = 200;
+const IDLE_HINT_MAX = 3;
 
 type Mode = 'birth' | 'idle' | 'input';
 
@@ -223,6 +226,49 @@ async function boot() {
     }
   };
 
+  // Idle hover hint — a "hold to talk" nudge above Minari for the first few
+  // idle-pose hovers, then retired. Mirrors the diary hint above; `pose` is
+  // fixed per session so the two hints never overlap.
+  let idleHintShows = 0;
+  let idleHovering = false;
+  let idleHintTimer: number | null = null;
+  const idleHintEl = document.createElement('div');
+  idleHintEl.textContent = window.minari.lang === 'ko' ? '꾹 누르면 대화' : 'hold to talk';
+  idleHintEl.style.cssText =
+    'position:fixed;z-index:999;pointer-events:none;font-size:12px;' +
+    'color:#5a7a8c;white-space:nowrap;' +
+    'padding:3px 9px;border-radius:999px;background:rgba(248,252,255,0.9);' +
+    'border:1px solid rgba(215,234,244,0.9);box-shadow:0 2px 8px rgba(53,84,104,0.12);' +
+    'opacity:0;transition:opacity 160ms ease-out;transform:translate(-50%,-100%);';
+  document.body.appendChild(idleHintEl);
+  const showIdleHint = () => {
+    idleHintEl.style.left = sprout.x + 'px';
+    idleHintEl.style.top = sprout.y + sprout.bubbleAnchorY() + 'px';
+    idleHintEl.style.opacity = '1';
+  };
+  const hideIdleHint = () => {
+    idleHintEl.style.opacity = '0';
+  };
+  const updateIdleHover = (active: boolean) => {
+    if (active === idleHovering) return;
+    idleHovering = active;
+    if (active) {
+      if (idleHintShows >= IDLE_HINT_MAX) return;
+      idleHintTimer = window.setTimeout(() => {
+        idleHintTimer = null;
+        if (!idleHovering) return;
+        showIdleHint();
+        idleHintShows++;
+      }, IDLE_HINT_DELAY_MS);
+    } else {
+      if (idleHintTimer !== null) {
+        clearTimeout(idleHintTimer);
+        idleHintTimer = null;
+      }
+      hideIdleHint();
+    }
+  };
+
   // Inner shared by both curious entry points. Tracks the converse result so
   // teaching's "pizza?" can re-open the input without us tracking it twice.
   const runCuriousTurn = async (logTag: string) => {
@@ -386,24 +432,25 @@ async function boot() {
   window.addEventListener('pointerdown', (e) => {
     isPointerDown = true;
     updateDiaryHover(false);
-    console.log(
+    updateIdleHover(false);
+    if (window.minari.devtools) console.log(
       '[gesture] pointerdown at ' +
         Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' mode=' + mode,
     );
     primeAudio();
     if (mode !== 'idle') {
-      console.log('[gesture] timer skipped: reason=mode=' + mode);
+      if (window.minari.devtools) console.log('[gesture] timer skipped: reason=mode=' + mode);
       return;
     }
     sprout.nudge();
 
     if (bubble.isVisible()) {
-      console.log('[gesture] timer skipped: reason=bubble-visible');
+      if (window.minari.devtools) console.log('[gesture] timer skipped: reason=bubble-visible');
       bubble.dismiss();
       return;
     }
     if (generating) {
-      console.log('[gesture] timer skipped: reason=generating');
+      if (window.minari.devtools) console.log('[gesture] timer skipped: reason=generating');
       return;
     }
 
@@ -423,12 +470,12 @@ async function boot() {
         lpArmed = false;
         lpFired = true;
         lpTimer = null;
-        console.log('[gesture] longpress fired');
+        if (window.minari.devtools) console.log('[gesture] longpress fired');
         void openCuriousPrompt();
       }, LONGPRESS_MS);
-      console.log('[gesture] longpress timer started');
+      if (window.minari.devtools) console.log('[gesture] longpress timer started');
     } else {
-      console.log('[gesture] timer skipped: reason=stage=' + stage);
+      if (window.minari.devtools) console.log('[gesture] timer skipped: reason=stage=' + stage);
     }
 
     // Capture the pointer so a fast drag past the window edge still routes
@@ -465,7 +512,7 @@ async function boot() {
     }
     if (!lpArmed) return;
     clearLongpress();
-    console.log(
+    if (window.minari.devtools) console.log(
       '[gesture] pointerup before longpress (duration=' +
         Math.round(performance.now() - lpDownTime) + 'ms)',
     );
@@ -529,10 +576,14 @@ async function boot() {
     updateDiaryHover(
       overMinari && pose === 'diary' && mode === 'idle' && !bubble.isVisible(),
     );
+    updateIdleHover(
+      overMinari && pose === 'idle' && mode === 'idle' && !bubble.isVisible(),
+    );
   });
   window.addEventListener('pointerleave', () => {
     isPointerDown = false;
     updateDiaryHover(false);
+    updateIdleHover(false);
     if (mode === 'birth') return;
     clearLongpress();
     sprout.onPointerLeave();
@@ -543,7 +594,7 @@ async function boot() {
   // A pointercancel during a press would otherwise leave isPointerDown stuck.
   // Logged so we can see whether the OS is cancelling the press on Windows.
   window.addEventListener('pointercancel', () => {
-    console.log('[gesture] pointercancel');
+    if (window.minari.devtools) console.log('[gesture] pointercancel');
     isPointerDown = false;
     clearLongpress();
   });

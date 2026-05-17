@@ -28,7 +28,7 @@ const POLL_MS = 30;
 // file drag never reaches dragover/drop (df5ffb6 removed the original
 // startCursorWatch and silently broke image drops).
 export function startCursorPoll(win: BrowserWindow): void {
-  console.log('[cursor-poll] startCursorPoll platform=' + process.platform);
+  if (process.env['MINARI_DEVTOOLS'] === '1') console.log('[cursor-poll] startCursorPoll platform=' + process.platform);
 
   let timer: ReturnType<typeof setInterval> | null = null;
   let ticks = 0;
@@ -37,7 +37,7 @@ export function startCursorPoll(win: BrowserWindow): void {
     if (win.isDestroyed() || win.isMinimized() || !win.isVisible()) return;
     ticks++;
     if (ticks === 1 || ticks % 100 === 0) {
-      console.log('[cursor-poll] tick #' + ticks);
+      if (process.env['MINARI_DEVTOOLS'] === '1') console.log('[cursor-poll] tick #' + ticks);
     }
     const cursor = screen.getCursorScreenPoint();
     const bounds = win.getBounds();
@@ -50,7 +50,7 @@ export function startCursorPoll(win: BrowserWindow): void {
   const start = (): void => {
     if (!timer) {
       timer = setInterval(tick, POLL_MS);
-      console.log('[cursor-poll] timer started');
+      if (process.env['MINARI_DEVTOOLS'] === '1') console.log('[cursor-poll] timer started');
     }
   };
   const stop = (): void => {
@@ -67,7 +67,7 @@ export function startCursorPoll(win: BrowserWindow): void {
   win.on('show', start);
   win.on('closed', stop);
 
-  console.log(
+  if (process.env['MINARI_DEVTOOLS'] === '1') console.log(
     '[cursor-poll] initial visible=' + win.isVisible() + ' minimized=' + win.isMinimized(),
   );
   if (win.isVisible() && !win.isMinimized()) start();

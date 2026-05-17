@@ -121,7 +121,7 @@ function getCtx(): AudioContext | null {
 
 function loadAllSamples(audioCtx: AudioContext): Promise<void> {
   if (loadingPromise) return loadingPromise;
-  console.log('[mumble] loading samples from ' + new URL('./sounds/a.wav', document.baseURI).href);
+  if (window.minari.devtools) console.log('[mumble] loading samples from ' + new URL('./sounds/a.wav', document.baseURI).href);
   loadingPromise = Promise.all(
     ALL_SAMPLE_NAMES.map(async (name) => {
       try {
@@ -138,14 +138,14 @@ function loadAllSamples(audioCtx: AudioContext): Promise<void> {
       }
     }),
   ).then(() => {
-    console.log('[mumble] loaded ' + buffers.size + '/' + ALL_SAMPLE_NAMES.length + ' samples');
+    if (window.minari.devtools) console.log('[mumble] loaded ' + buffers.size + '/' + ALL_SAMPLE_NAMES.length + ' samples');
   });
   return loadingPromise;
 }
 
 export function primeAudio() {
   const audioCtx = getCtx();
-  console.log('[mumble] primeAudio ctx=' + (audioCtx ? audioCtx.state : 'null'));
+  if (window.minari.devtools) console.log('[mumble] primeAudio ctx=' + (audioCtx ? audioCtx.state : 'null'));
   if (audioCtx) void loadAllSamples(audioCtx);
 }
 
@@ -186,10 +186,10 @@ function pickSampleName(ch: string): string[] {
 }
 
 export async function playMumble(text: string, profile: VoiceProfile) {
-  console.log('[mumble] play triggered, text=' + JSON.stringify(text));
+  if (window.minari.devtools) console.log('[mumble] play triggered, text=' + JSON.stringify(text));
   const audioCtx = getCtx();
   if (!audioCtx) {
-    console.log('[mumble] play skipped: reason=no-audiocontext');
+    if (window.minari.devtools) console.log('[mumble] play skipped: reason=no-audiocontext');
     return;
   }
   await loadAllSamples(audioCtx);
@@ -236,7 +236,7 @@ export async function playMumble(text: string, profile: VoiceProfile) {
       const dur = buf.duration / playbackRate;
 
       const effectiveVol = globalMuted ? 0 : profile.volume * globalVolume;
-      console.log(
+      if (window.minari.devtools) console.log(
         '[mumble] playing sample ' + name +
           ' gain=' + effectiveVol.toFixed(3) + ' rate=' + playbackRate.toFixed(2),
       );
@@ -259,7 +259,7 @@ export async function playMumble(text: string, profile: VoiceProfile) {
         : missingBuf > 0
           ? 'sample-buffers-missing'
           : 'unknown';
-    console.log(
+    if (window.minari.devtools) console.log(
       '[mumble] play skipped: reason=' + reason +
         ' (mapped=' + mapped + ' buffers=' + buffers.size + ')',
     );

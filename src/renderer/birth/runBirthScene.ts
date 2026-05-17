@@ -32,7 +32,7 @@ export interface BirthSceneDeps {
 }
 
 export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Promise<void> {
-  console.log('[birth] scene start; sprout at', sprout.x, sprout.y);
+  if (window.minari.devtools) console.log('[birth] scene start; sprout at', sprout.x, sprout.y);
   // Minari stays hidden — the seed and germinating sprout own the screen until
   // the character reveal. index.ts already set visible=false; belt-and-braces.
   sprout.visible = false;
@@ -50,11 +50,11 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
   // fades as the stem pushes up through it.
   app.stage.addChild(bsprout);
   app.stage.addChild(seed);
-  console.log('[birth] seed + sprout added; children:', app.stage.children.length);
+  if (window.minari.devtools) console.log('[birth] seed + sprout added; children:', app.stage.children.length);
 
   // Seed appears, holds a beat, then a small squash-stretch "까딱".
   await tween(SEED_FADE_IN_MS, (p) => seed.setProgress(easeOutCubic(p)));
-  console.log('[birth] seed fade-in done');
+  if (window.minari.devtools) console.log('[birth] seed fade-in done');
   await delay(SEED_HOLD_MS);
   await tween(SEED_WOBBLE_MS, (p) => {
     const s = dampedWobble(p) * SEED_SQUASH_AMP;
@@ -64,7 +64,7 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
 
   // Stage 1: stem rises (ease-in: slow then accelerating) while the seed
   // cracks open and fades.
-  console.log('[birth] stage1 stem growth start');
+  if (window.minari.devtools) console.log('[birth] stage1 stem growth start');
   await tween(STEM_GROW_MS, (p) => {
     bsprout.setStemGrowth(easeInCubic(p));
     const fadeP = Math.min(1, p / SEED_FADE_FRAC);
@@ -73,18 +73,18 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
   bsprout.setStemGrowth(1);
   app.stage.removeChild(seed);
   seed.destroy({ children: true });
-  console.log('[birth] stage1 done; stem at full height');
+  if (window.minari.devtools) console.log('[birth] stage1 done; stem at full height');
 
   // Stage 2: leaves unfold from the bud with a damped wobble settle.
-  console.log('[birth] stage2 leaf unfold start');
+  if (window.minari.devtools) console.log('[birth] stage2 leaf unfold start');
   await tween(LEAF_UNFOLD_MS, (p) => {
     bsprout.setLeafUnfold(easeOutSpring(p));
   });
   bsprout.setLeafUnfold(1);
-  console.log('[birth] stage2 done; leaves unfolded');
+  if (window.minari.devtools) console.log('[birth] stage2 done; leaves unfolded');
 
   // Stage 4: the full Minari cross-fades in over the germinated sprout.
-  console.log('[birth] character reveal start');
+  if (window.minari.devtools) console.log('[birth] character reveal start');
   sprout.visible = true;
   // Re-add to bring Minari above the now-fading germination sprout.
   app.stage.addChild(sprout);
@@ -98,7 +98,7 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
   sprout.scale.set(1);
   app.stage.removeChild(bsprout);
   bsprout.destroy({ children: true });
-  console.log('[birth] character reveal done');
+  if (window.minari.devtools) console.log('[birth] character reveal done');
 
   await delay(POST_BIRTH_BEAT_MS);
 
