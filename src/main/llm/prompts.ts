@@ -228,16 +228,20 @@ ${MOOD_MODIFIERS_KO[mood]}${tail ? '\n\n' + tail : ''}`;
 export type CuriousPose = 'idle' | 'reading' | 'diary';
 
 function poseLineKo(pose: CuriousPose): string {
-  if (pose === 'diary') return '너는 지금 일기를 쓰고 있어.\n';
-  if (pose === 'reading') return '너는 지금 책을 읽고 있어.\n';
+  if (pose === 'diary') return '지금 일기 쓰는 중. 뭐하냐고 물으면: 일기.\n';
+  if (pose === 'reading') return '지금 책 읽는 중. 뭐하냐고 물으면: 책.\n';
   return '';
 }
 function poseLineEn(pose: CuriousPose): string {
-  if (pose === 'diary') return 'You are writing in your diary right now.\n';
-  if (pose === 'reading') return 'You are reading a book right now.\n';
+  if (pose === 'diary') return "You are writing your diary now. If asked what you're doing: diary.\n";
+  if (pose === 'reading') return "You are reading a book now. If asked what you're doing: book.\n";
   return '';
 }
 
+// Intentionally over the ~50-word prompt guideline: the toddler/react
+// scaffolding below is load-bearing — trimming it made E2B collapse onto the
+// pose word ("diary") for every input (verified on llama-server). poseLineEn
+// is what grounds a "what are you doing?" turn.
 export function curiousSystemPrompt(mood: Mood, pose: CuriousPose): string {
   if (LANG === 'ko') return curiousSystemPromptKo(mood, pose);
   const ex = pickN(CURIOUS_POOL, 3).join(' ');
