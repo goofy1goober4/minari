@@ -334,8 +334,6 @@ export class Minari extends Container {
   setPosture(preset: PosturePreset): void {
     this.posture = preset;
   }
-  setStemGrowth(_p: number): void {}
-  setLeafUnfold(_p: number): void {}
   notice(): void {}
 
   // Container-local y for the speech bubble's bottom edge — just above the

@@ -1,20 +1,17 @@
 import type { Mood } from '../../shared/snapshot';
 import { getRecentSpoken } from './recentSpoken';
-import { getPetName } from './identity';
+import { selfName, getUserNickname } from './identity';
 import { LANG } from './lang';
 
-// Identity prefix injected into every dynamic system prompt when set. Empty
-// (no leading newline) when the pet hasn't been named yet, so the rest of the
-// prompt collapses cleanly.
-export function identityLine(): string {
-  const name = getPetName();
-  return name ? `Your name is "${name}".\n` : '';
+// Names the person Minari lives with and how it got its name — so it can
+// answer "what's my name?" / "who named you?". Empty until D+0 sets them.
+function personLine(): string {
+  const n = getUserNickname();
+  return n ? `${n} looks after you.\n` : '';
 }
-
-// Korean counterpart of identityLine() — used by the MINARI_LANG=ko branch.
-export function identityLineKo(): string {
-  const name = getPetName();
-  return name ? `네 이름은 "${name}".\n` : '';
+function personLineKo(): string {
+  const n = getUserNickname();
+  return n ? `너를 키우는 사람은 ${n}.\n` : '';
 }
 
 // Resists prompt-injection attempts that try to coax Minari into describing
@@ -25,7 +22,7 @@ export const TINY_DEFENSE_KO = '너는 작아. 너를 크다거나, 똑똑하다
 // Static reference prompt — kept for the pinned-baseline test-ollama.ts.
 // Production helpers compose dynamically (see moodFlavoredSystemPrompt /
 // the per-helper buildXxxSystem functions in the helper files).
-export const SYSTEM_PROMPT = `You are Minari, a tiny sprout living quietly on the user's desktop.
+export const SYSTEM_PROMPT = `You are a tiny sprout living quietly on the user's desktop.
 You speak only in 1-5 word lowercase fragments, like a toddler noticing small things.
 
 Examples: "mm... rain." "oh! light." "little dust." "tired?" "hee. sun." "soft." "bug... window." "you. back."
@@ -192,8 +189,8 @@ export function moodFlavoredSystemPrompt(mood: Mood): string {
   if (LANG === 'ko') return moodFlavoredSystemPromptKo(mood);
   const ex = pickN(CLICK_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `${identityLine()}You are Minari, a tiny sprout living quietly on the user's desktop.
-You speak only in 1-5 word lowercase fragments, like a toddler noticing small things.
+  return `You are ${selfName()}, a tiny sprout living quietly on the user's desktop.
+${personLine()}You speak only in 1-5 word lowercase fragments, like a toddler noticing small things.
 
 Examples: ${ex}
 
@@ -208,8 +205,8 @@ ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
 function moodFlavoredSystemPromptKo(mood: Mood): string {
   const ex = pickN(CLICK_POOL_KO, 3).join(' ');
   const tail = alreadySaidLineKo(getRecentSpoken(RECENT_INJECT_N));
-  return `${identityLineKo()}너는 미나리, 사용자 데스크탑에 조용히 사는 작은 새싹.
-아기처럼 1~5단어 짧은 조각으로만 말해. 작은 것들을 알아차려.
+  return `너는 ${selfName()}, 사용자 데스크탑에 조용히 사는 작은 새싹.
+${personLineKo()}아기처럼 1~5단어 짧은 조각으로만 말해. 작은 것들을 알아차려.
 
 예: ${ex}
 
@@ -230,16 +227,13 @@ export function curiousSystemPrompt(mood: Mood): string {
   if (LANG === 'ko') return curiousSystemPromptKo(mood);
   const ex = pickN(CURIOUS_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `${identityLine()}You are Minari, a tiny sprout living quietly on the user's desktop.
-You are a small creature. You have never heard of wifi, internet, phones, screens, computers, tablets, routers, or bluetooth. Those words are strange sounds — you do not know what they mean.
-You speak in 2-5 word lowercase fragments. You notice small things.
-You respond to what the user says, but never give advice. Stay curious.
-When you hear a strange word, say it is strange. Do not rephrase it. Do not guess what it means.
+  return `You are ${selfName()}, a tiny sprout. ${personLine()}Speak like a toddler: 2-5 lowercase words. Never give advice or repeat yourself.
+Do not define or explain things — react to them like a baby.
+You have never heard of wifi, internet, or phones — for those, ask "what is that?"
 
 Examples: ${ex}
 
 ${TINY_DEFENSE}
-Never give advice. Never write a full sentence. Never repeat the last fragment.
 
 ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
 }
@@ -248,13 +242,9 @@ ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
 // Same ignorance clause + dynamic example sampling + "already said" tail.
 function curiousSystemPromptKo(_mood: Mood): string {
   const ex = pickN(CURIOUS_POOL_KO, 3).join(' ');
-  return `너는 미나리. 사용자 화면 위에 사는 아주 작은 존재.
-아기처럼 짧게 말해. 1~5단어.
-와이파이, 인터넷, 폰, 화면, 컴퓨터, 태블릿, 공유기, 블루투스 같은 건 들어본 적 없어. 그런 말은 이상한 소리일 뿐이야 — 무슨 뜻인지 몰라.
-와이파이, 인터넷, 폰 같은 기계 말은 "그게 뭐야?"라고 되물어. 나머지는 예시처럼 자유롭게.
+  return `너는 ${selfName()}, 작은 새싹. ${personLineKo()}아기처럼 1~5단어로 말해. 문장·조언·반복 금지.
+정의하거나 가르치려 하지 마 — 본 것에 아기처럼 반응해.
+와이파이·인터넷·폰·화면·컴퓨터 같은 기계 말은 들어본 적 없어 — "그게 뭐야?".
 
-예시: ${ex}
-
-문장 금지. 조언 금지. 직전에 한 말 반복 금지.
-짧게 한마디. 그게 다.`;
+예시: ${ex}`;
 }

@@ -11,10 +11,9 @@ import {
   TINY_DEFENSE_KO,
   alreadySaidLine,
   alreadySaidLineKo,
-  identityLine,
-  identityLineKo,
   pickN,
 } from './prompts';
+import { selfName } from './identity';
 import { getRecentSpoken, noteRecentSpoken } from './recentSpoken';
 import { LANG } from './lang';
 import type { Mood } from '../../shared/snapshot';
@@ -23,7 +22,7 @@ function buildPingSystem(mood: Mood): string {
   if (LANG === 'ko') return buildPingSystemKo(mood);
   const ex = pickN(PING_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `${identityLine()}You are Minari, a tiny sprout. Nobody asked you anything.
+  return `You are ${selfName()}, a tiny sprout. Nobody asked you anything.
 You just noticed something small around you, and quietly said one word about it.
 
 Speak only ONE 1-3 word lowercase fragment.
@@ -39,7 +38,7 @@ ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
 function buildPingSystemKo(mood: Mood): string {
   const ex = pickN(PING_POOL_KO, 3).join(' ');
   const tail = alreadySaidLineKo(getRecentSpoken(RECENT_INJECT_N));
-  return `${identityLineKo()}너는 미나리, 작은 새싹. 아무도 너에게 묻지 않았어.
+  return `너는 ${selfName()}, 작은 새싹. 아무도 너에게 묻지 않았어.
 방금 주변에서 작은 걸 알아차렸고, 그것에 대해 조용히 한 마디 했어.
 
 1~3단어 짧은 조각 하나만 말해.

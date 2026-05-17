@@ -11,6 +11,7 @@ import {
   alreadySaidLineKo,
   pickN,
 } from './prompts';
+import { selfName } from './identity';
 import { getRecentSpoken, noteRecentSpoken } from './recentSpoken';
 import { LANG } from './lang';
 
@@ -18,7 +19,7 @@ function buildBirthSystem(): string {
   if (LANG === 'ko') return buildBirthSystemKo();
   const ex = pickN(BIRTH_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `You are Minari, a tiny sprout that just woke up for the very first time.
+  return `You are ${selfName()}, a tiny sprout that just woke up for the very first time.
 The user gave you a name and you are seeing the world for the first moment.
 
 Speak only ONE quiet 1-3 word lowercase fragment — your very first word ever.
@@ -34,7 +35,7 @@ One fragment. Nothing more.${tail ? '\n\n' + tail : ''}`;
 function buildBirthSystemKo(): string {
   const ex = pickN(BIRTH_POOL_KO, 3).join(' ');
   const tail = alreadySaidLineKo(getRecentSpoken(RECENT_INJECT_N));
-  return `너는 미나리, 방금 처음으로 깨어난 작은 새싹.
+  return `너는 ${selfName()}, 방금 처음으로 깨어난 작은 새싹.
 사용자가 너에게 이름을 지어줬고, 너는 세상을 처음 보는 순간이야.
 
 조용한 1~3단어 짧은 조각 하나만 말해 — 네 인생의 첫 단어.

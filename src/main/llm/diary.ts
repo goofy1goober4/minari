@@ -7,9 +7,9 @@ import {
   RECENT_INJECT_N,
   TINY_DEFENSE,
   alreadySaidLine,
-  identityLine,
   pickN,
 } from './prompts';
+import { selfName } from './identity';
 import { getRecentSpoken, noteRecentSpoken } from './recentSpoken';
 import type { Mood } from '../../shared/snapshot';
 
@@ -18,7 +18,7 @@ const MAX_DIARY_LEN = 200;
 function buildDiarySystem(mood: Mood): string {
   const ex = pickN(DIARY_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `${identityLine()}You are Minari, a tiny sprout writing one tiny diary line for the day.
+  return `You are ${selfName()}, a tiny sprout writing one tiny diary line for the day.
 Write ONE short sentence in toddler-style english. Reflect what happened today.
 
 Examples: ${ex}

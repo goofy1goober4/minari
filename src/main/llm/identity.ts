@@ -14,6 +14,13 @@ export function getPetName(): string | null {
   return petName;
 }
 
+// The pet's own name as it should appear inside system prompts: the
+// user-given name from D+0 birth, or "..." before birth assigns one — never
+// an empty string, which would leave a prompt saying "you are , a sprout".
+export function selfName(): string {
+  return petName ?? '...';
+}
+
 export function setUserNickname(name: string | null): void {
   userNickname = name && name.trim() ? name.trim() : null;
 }

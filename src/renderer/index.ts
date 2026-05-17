@@ -41,8 +41,11 @@ async function boot() {
   document.body.appendChild(app.canvas);
 
   const sprout = new Minari(pose);
-  sprout.x = app.screen.width - 300;
+  sprout.x = app.screen.width - 500;
   sprout.y = app.screen.height - 80;
+  // During D+0 birth the seed + germinating sprout own the screen; the full
+  // character is revealed by runBirthScene. Hidden here so it never flashes.
+  if (!birthState.completed) sprout.visible = false;
   app.stage.addChild(sprout);
 
   const bubble = new Bubble();
@@ -143,6 +146,7 @@ async function boot() {
   const runCuriousTurn = async (logTag: string) => {
     const prompt = new CuriousPrompt({
       fetchHistory: () => window.minari.getRecentMessages(20),
+      petAnchor: () => ({ x: sprout.x, y: sprout.y }),
     });
     prompt.mount();
     let expectFollowup = false;
@@ -500,8 +504,10 @@ async function boot() {
       await runBirthScene({ app, sprout, bubble });
     } catch (err) {
       console.error('[boot] birth scene failed:', err);
-      sprout.setStemGrowth(1);
-      sprout.setLeafUnfold(1);
+      // Failsafe — make sure Minari is on screen even if the scene threw.
+      sprout.visible = true;
+      sprout.alpha = 1;
+      sprout.scale.set(1);
     } finally {
       mode = 'idle';
       // Reset to pass-through; pointermove will re-enable when cursor enters hit region.

@@ -1,11 +1,20 @@
 const DEFAULT_MAX_LEN = 20;
 const DEFAULT_SUBMIT_LABEL = 'ok';
+// Movement past this (px) turns a press into a drag — below it, a click on
+// the card still behaves as a plain click. Matches CuriousPrompt's DRAG_TOL_PX.
+const DRAG_TOL_PX = 4;
+
+// Last dragged position, remembered for the rest of the session so the second
+// birth prompt (pet name) reappears where the user left the first one.
+let lastPos: { x: number; y: number } | null = null;
 
 export interface NicknamePromptOptions {
   question: string;
   placeholder: string;
   submitLabel?: string;
   maxLen?: number;
+  // Minari's position — first-open placement sits the card to her left.
+  anchor?: { x: number; y: number };
 }
 
 export class NicknamePrompt {
@@ -16,9 +25,20 @@ export class NicknamePrompt {
   private submitHandler: () => void;
   private keyHandler: (e: KeyboardEvent) => void;
 
+  // Drag state — see onDragStart. Position is (left, bottom-from-window-bottom).
+  private dragging = false;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private elStartLeft = 0;
+  private elStartBottom = 0;
+  private posX: number | null = null;
+  private posY: number | null = null;
+  private readonly anchor: { x: number; y: number } | null;
+
   constructor(options: NicknamePromptOptions) {
     const maxLen = options.maxLen ?? DEFAULT_MAX_LEN;
     const submitLabel = options.submitLabel ?? DEFAULT_SUBMIT_LABEL;
+    this.anchor = options.anchor ?? null;
 
     this.el = document.createElement('div');
     this.el.className = 'minari-nickname-prompt';
@@ -72,11 +92,31 @@ export class NicknamePrompt {
       }
     };
     this.input.addEventListener('keydown', this.keyHandler);
+
+    // Drag the card by its chrome; the input and button keep their own
+    // pointer behaviour (text caret / click) by swallowing the event.
+    this.el.addEventListener('pointerdown', (e) => this.onDragStart(e));
+    this.input.addEventListener('pointerdown', (e) => e.stopPropagation());
+    this.button.addEventListener('pointerdown', (e) => e.stopPropagation());
   }
 
   mount(parent: HTMLElement = document.body) {
     parent.appendChild(this.el);
     requestAnimationFrame(() => {
+      // Reuse the dragged spot; else sit to Minari's left like the curious
+      // prompt; else fall back to bottom-centre.
+      if (lastPos) {
+        this.applyPosition(lastPos.x, lastPos.y);
+      } else if (this.anchor) {
+        const PET_HALF_W = 70;
+        const GAP = 24;
+        this.applyPosition(
+          this.anchor.x - PET_HALF_W - GAP - this.el.offsetWidth,
+          window.innerHeight - this.anchor.y + 40,
+        );
+      } else {
+        this.applyPosition((window.innerWidth - this.el.offsetWidth) / 2, 16);
+      }
       this.el.classList.add('is-visible');
       this.input.focus();
     });
@@ -98,6 +138,60 @@ export class NicknamePrompt {
     await new Promise((r) => setTimeout(r, 220));
     this.el.remove();
   }
+
+  // ── Drag ───────────────────────────────────────────────────────────────
+  // Ported from CuriousPrompt.onDragStart — same press-then-move arming and
+  // (left, bottom-from-window-bottom) coordinate model.
+  private onDragStart(e: PointerEvent) {
+    if (e.button !== 0) return;
+    this.dragging = false;
+    this.dragStartX = e.clientX;
+    this.dragStartY = e.clientY;
+    const rect = this.el.getBoundingClientRect();
+    this.elStartLeft = rect.left;
+    this.elStartBottom = window.innerHeight - rect.bottom;
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - this.dragStartX;
+      const dy = ev.clientY - this.dragStartY;
+      if (!this.dragging && dx * dx + dy * dy > DRAG_TOL_PX * DRAG_TOL_PX) {
+        this.dragging = true;
+        this.el.classList.add('is-dragging');
+      }
+      if (this.dragging) {
+        // dy positive (cursor moved down) → bottom-distance decreases.
+        this.applyPosition(this.elStartLeft + dx, this.elStartBottom - dy);
+      }
+    };
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      if (this.dragging) {
+        this.dragging = false;
+        this.el.classList.remove('is-dragging');
+        if (this.posX !== null && this.posY !== null) {
+          lastPos = { x: this.posX, y: this.posY };
+        }
+      }
+    };
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }
+
+  // x: left from window left. y: bottom-distance from window bottom.
+  private applyPosition(x: number, y: number) {
+    const margin = 4;
+    const maxX = Math.max(margin, window.innerWidth - this.el.offsetWidth - margin);
+    const maxY = Math.max(margin, window.innerHeight - this.el.offsetHeight - margin);
+    const cx = Math.max(margin, Math.min(maxX, x));
+    const cy = Math.max(margin, Math.min(maxY, y));
+    this.posX = cx;
+    this.posY = cy;
+    this.el.style.left = cx + 'px';
+    this.el.style.bottom = cy + 'px';
+    this.el.style.right = 'auto';
+    this.el.style.top = 'auto';
+  }
 }
 
 let stylesInjected = false;
@@ -105,30 +199,40 @@ function injectStylesOnce() {
   if (stylesInjected) return;
   stylesInjected = true;
   const style = document.createElement('style');
+  // Frutiger Aero glass surface — shares the palette + glass treatment of
+  // CuriousPrompt so the D+0 birth UI matches the curious-stage input.
   style.textContent = `
     .minari-nickname-prompt {
       position: fixed;
-      left: 50%;
-      bottom: 12px;
-      transform: translateX(-50%) translateY(8px);
+      bottom: 16px;
+      transform: translateY(8px);
       opacity: 0;
-      transition: opacity 220ms ease-out, transform 220ms ease-out;
+      transition: opacity 240ms ease-out, transform 240ms ease-out;
       pointer-events: auto;
       z-index: 1000;
+      cursor: grab;
     }
     .minari-nickname-prompt.is-visible {
       opacity: 1;
-      transform: translateX(-50%) translateY(0);
+      transform: translateY(0);
+    }
+    .minari-nickname-prompt.is-dragging {
+      cursor: grabbing;
+      transition: opacity 240ms ease-out;
     }
     .minari-nickname-card {
-      background: #fffbf3;
-      border: 1px solid #d9d1c3;
-      border-radius: 14px;
-      padding: 14px 16px 12px;
-      box-shadow: 0 6px 20px rgba(74, 90, 61, 0.12);
+      background: rgba(248, 252, 255, 0.85);
+      border: 1px solid rgba(220, 236, 245, 0.85);
+      border-radius: 18px;
+      padding: 14px 16px 13px;
+      box-shadow:
+        0 4px 14px rgba(53, 84, 104, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(14px) saturate(1.2);
+      -webkit-backdrop-filter: blur(14px) saturate(1.2);
       font-family: system-ui, -apple-system, "Helvetica Neue", sans-serif;
-      color: #4a5a3d;
-      min-width: 240px;
+      color: #355468;
+      min-width: 248px;
     }
     .minari-nickname-question {
       font-size: 13px;
@@ -142,18 +246,33 @@ function injectStylesOnce() {
     }
     .minari-nickname-input {
       flex: 1;
+      min-width: 0;
+      box-sizing: border-box;
       font: inherit;
       font-size: 14px;
-      color: #4a5a3d;
-      background: #f6f0e2;
-      border: 1px solid #d9d1c3;
-      border-radius: 8px;
-      padding: 6px 10px;
+      color: #355468;
+      background: rgba(248, 252, 255, 0.85);
+      border: 1px solid rgba(215, 234, 244, 0.9);
+      border-radius: 22px;
+      padding: 8px 14px;
       outline: none;
-      transition: border-color 120ms ease-out;
+      cursor: text;
+      box-shadow:
+        0 2px 8px rgba(53, 84, 104, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(14px) saturate(1.2);
+      -webkit-backdrop-filter: blur(14px) saturate(1.2);
+      transition: border-color 300ms ease-out, box-shadow 300ms ease-out;
+    }
+    .minari-nickname-input::placeholder {
+      color: #97ADBC;
     }
     .minari-nickname-input:focus {
-      border-color: #9bbf7d;
+      border-color: #8EC5EA;
+      box-shadow:
+        0 0 0 3px rgba(221, 245, 234, 0.6),
+        0 2px 8px rgba(53, 84, 104, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
     }
     .minari-nickname-input:disabled {
       opacity: 0.6;
@@ -161,19 +280,23 @@ function injectStylesOnce() {
     .minari-nickname-submit {
       font: inherit;
       font-size: 13px;
-      color: #fffbf3;
-      background: #9bbf7d;
-      border: none;
-      border-radius: 8px;
-      padding: 6px 12px;
+      font-weight: 600;
+      color: #355468;
+      background: linear-gradient(135deg, #8EC5EA, #DDF5EA);
+      border: 1px solid rgba(215, 234, 244, 0.9);
+      border-radius: 999px;
+      padding: 8px 16px;
       cursor: pointer;
-      transition: background 120ms ease-out, opacity 120ms ease-out;
+      box-shadow:
+        0 2px 8px rgba(53, 84, 104, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      transition: filter 200ms ease-out, opacity 200ms ease-out;
     }
     .minari-nickname-submit:hover:not(:disabled) {
-      background: #8fb36d;
+      filter: brightness(1.06);
     }
     .minari-nickname-submit:disabled {
-      opacity: 0.5;
+      opacity: 0.45;
       cursor: default;
     }
   `;

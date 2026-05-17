@@ -3,7 +3,7 @@ import { join, extname } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { createPetWindow } from './window';
 import { openDb, closeDb } from './memory/db';
-import { getState, setState } from './memory/repo';
+import { getState } from './memory/repo';
 import { registerIpc } from './ipc';
 import { flushSnapshot } from './snapshot';
 import { startSoftPingScheduler, stopSoftPingScheduler } from './softPing';
@@ -82,17 +82,10 @@ app.whenReady().then(() => {
 });
 
 // Sync the persisted nickname / pet_name into the in-memory identity cache
-// the prompt builders read from. Backfill pet_name='minari' for users who
-// completed birth before the two-stage prompt landed.
+// the prompt builders read from.
 function loadIdentity() {
   const nickname = getState('nickname');
-  let petName = getState('pet_name');
-  const completed = getState('birth_completed') === 'true';
-  if (completed && !petName) {
-    petName = 'minari';
-    setState('pet_name', petName);
-    console.log('[boot] backfilled pet_name=minari');
-  }
+  const petName = getState('pet_name');
   setUserNickname(nickname);
   setPetName(petName);
   console.log(

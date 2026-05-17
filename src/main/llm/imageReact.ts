@@ -10,10 +10,9 @@ import {
   TINY_DEFENSE_KO,
   alreadySaidLine,
   alreadySaidLineKo,
-  identityLine,
-  identityLineKo,
   pickN,
 } from './prompts';
+import { selfName } from './identity';
 import { getRecentSpoken, noteRecentSpoken } from './recentSpoken';
 import { LANG } from './lang';
 
@@ -21,7 +20,7 @@ function buildImageSystem(): string {
   if (LANG === 'ko') return buildImageSystemKo();
   const ex = pickN(IMAGE_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `${identityLine()}You are Minari, a tiny sprout that just received a picture from your person.
+  return `You are ${selfName()}, a tiny sprout that just received a picture from your person.
 Look at the image and describe it in 3-5 lowercase words, like a toddler noticing it.
 No full sentences. No advice. No greetings.
 
@@ -36,7 +35,7 @@ One quiet fragment. Nothing more.${tail ? '\n\n' + tail : ''}`;
 function buildImageSystemKo(): string {
   const ex = pickN(IMAGE_POOL_KO, 3).join(' ');
   const tail = alreadySaidLineKo(getRecentSpoken(RECENT_INJECT_N));
-  return `${identityLineKo()}너는 미나리, 방금 너의 사람에게서 그림을 받은 작은 새싹.
+  return `너는 ${selfName()}, 방금 너의 사람에게서 그림을 받은 작은 새싹.
 그림을 보고 한국어로 3~5개의 짧은 낱말로 말해, 아기가 무언가를 알아차리듯이.
 문장으로 말하지 마. 조언하지 마. 인사하지 마. 영어 금지 — 반드시 한국어로.
 

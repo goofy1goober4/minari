@@ -22,6 +22,9 @@ interface HistoryRow {
 
 export interface CuriousPromptDeps {
   fetchHistory: () => Promise<HistoryRow[]>;
+  // Minari's current position (centre-x, feet-y in window coords) — used to
+  // place the prompt to her left on first open, before any saved drag.
+  petAnchor: () => { x: number; y: number };
 }
 
 export class CuriousPrompt {
@@ -66,6 +69,7 @@ export class CuriousPrompt {
 
   constructor(deps: CuriousPromptDeps) {
     this.deps = deps;
+    const isKo = window.minari.lang === 'ko';
     this.el = document.createElement('div');
     this.el.className = 'minari-curious';
     this.el.innerHTML = `
@@ -93,10 +97,10 @@ export class CuriousPrompt {
         </div>
       </div>
       <div class="minari-curious-confirm" hidden>
-        <div class="minari-curious-confirm-msg">Quit Minari?</div>
+        <div class="minari-curious-confirm-msg">${isKo ? '미나리 끌까?' : 'Quit Minari?'}</div>
         <div class="minari-curious-confirm-actions">
-          <button type="button" class="minari-curious-confirm-yes">Yes</button>
-          <button type="button" class="minari-curious-confirm-no">No</button>
+          <button type="button" class="minari-curious-confirm-yes">${isKo ? '응' : 'Yes'}</button>
+          <button type="button" class="minari-curious-confirm-no">${isKo ? '아니' : 'No'}</button>
         </div>
       </div>
     `;
@@ -257,6 +261,7 @@ export class CuriousPrompt {
       window.minari.getVolume().catch(() => ({ volume: 1, muted: false })),
     ]).then(([pos, h, vol]) => {
       if (pos) this.applyPosition(pos.x, pos.y);
+      else this.applyInitialPosition();
       if (h && h > 60) scrollEl.style.maxHeight = h + 'px';
       this.volume = vol.volume;
       this.muted = vol.muted;
@@ -545,6 +550,17 @@ export class CuriousPrompt {
     };
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
+  }
+
+  // First-open placement: the empty space to Minari's left. Only used when no
+  // dragged position has been saved — a later drag persists via setCuriousPos.
+  private applyInitialPosition() {
+    const pet = this.deps.petAnchor();
+    const PET_HALF_W = 70;
+    const GAP = 24;
+    const left = pet.x - PET_HALF_W - GAP - this.el.offsetWidth;
+    const bottom = window.innerHeight - pet.y + 40;
+    this.applyPosition(left, bottom);
   }
 
   // x: left from window left. y: bottom-distance from window bottom.
