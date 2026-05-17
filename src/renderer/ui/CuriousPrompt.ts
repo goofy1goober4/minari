@@ -14,6 +14,16 @@ const HISTORY_LIMIT = 16;
 const ARM_GRACE_MS = 700;
 const DRAG_TOL_PX = 4;
 const EJECT_LONGPRESS_MS = 500;
+// Hover tooltips on the ⏏ / ♪ / ⌽ controls — a 400 ms dwell before the label
+// appears (so a passing cursor doesn't flash it), then it auto-dismisses
+// 700 ms later even if the cursor stays put. Unlike the over-Minari hover
+// hints there's no show-count cap: the labels stay available on every hover.
+const BTN_TOOLTIP_DELAY_MS = 400;
+const BTN_TOOLTIP_HOLD_MS = 700;
+// Asymmetric fade: a snappy fade-in, then a gentle, slower fade-out so the
+// label drifts away rather than blinking off.
+const BTN_TOOLTIP_FADE_IN_MS = 140;
+const BTN_TOOLTIP_FADE_OUT_MS = 450;
 
 interface HistoryRow {
   role: 'user' | 'minari';
@@ -67,6 +77,13 @@ export class CuriousPrompt {
   private ejectLongPressTimer: ReturnType<typeof setTimeout> | null = null;
   private ejectLongPressFired = false;
 
+  // Custom hover tooltips for the ⏏ / ♪ / ⌽ controls — one shared bubble.
+  // `tooltipTimer` is the dwell-before-show timer; `tooltipHideTimer` is the
+  // auto-dismiss timer started once the label is visible.
+  private tooltipEl: HTMLDivElement;
+  private tooltipTimer: ReturnType<typeof setTimeout> | null = null;
+  private tooltipHideTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(deps: CuriousPromptDeps) {
     this.deps = deps;
     const isKo = window.minari.lang === 'ko';
@@ -85,15 +102,15 @@ export class CuriousPrompt {
           autocomplete="off"
           spellcheck="false"
         />
-        <button type="button" class="minari-curious-eject" title="History · hold for volume &amp; quit">⏏</button>
+        <button type="button" class="minari-curious-eject">⏏</button>
       </form>
       <div class="minari-curious-menu" hidden>
-        <button type="button" class="minari-curious-close" title="Quit"></button>
+        <button type="button" class="minari-curious-close"></button>
         <div class="minari-curious-vol-row">
           <div class="minari-curious-vol-bar" hidden>
             <div class="minari-curious-vol-fill"></div>
           </div>
-          <button type="button" class="minari-curious-vol" title="Volume"></button>
+          <button type="button" class="minari-curious-vol"></button>
         </div>
       </div>
       <div class="minari-curious-confirm" hidden>
@@ -185,6 +202,18 @@ export class CuriousPrompt {
       e.stopPropagation();
       this.startVolumeDrag(e);
     });
+
+    // Hover tooltips — one shared bubble, repositioned per control. The native
+    // `title` attributes are dropped above so these don't double up.
+    this.tooltipEl = document.createElement('div');
+    this.tooltipEl.className = 'minari-curious-tooltip';
+    document.body.appendChild(this.tooltipEl);
+    this.attachTooltip(
+      this.ejectBtn,
+      isKo ? '기록 · 꾹 누르면 소리·끄기' : 'History · hold for volume & quit',
+    );
+    this.attachTooltip(this.volBtn, isKo ? '소리' : 'Volume');
+    this.attachTooltip(this.closeBtn, isKo ? '끄기' : 'Quit');
 
     this.keyHandler = (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
@@ -358,6 +387,15 @@ export class CuriousPrompt {
       clearTimeout(this.armTimer);
       this.armTimer = null;
     }
+    if (this.tooltipTimer) {
+      clearTimeout(this.tooltipTimer);
+      this.tooltipTimer = null;
+    }
+    if (this.tooltipHideTimer) {
+      clearTimeout(this.tooltipHideTimer);
+      this.tooltipHideTimer = null;
+    }
+    this.tooltipEl.remove();
     this.armed = false;
   }
 
@@ -489,6 +527,58 @@ export class CuriousPrompt {
         this.confirmEl.hidden = true;
       }
     }, 260);
+  }
+
+  // ── Hover tooltips ───────────────────────────────────────────────────────
+  // Each control shows `label` after a short dwell. No show-count cap — the
+  // hint is available on every hover. Acting on the control (or leaving it)
+  // dismisses it immediately.
+  private attachTooltip(btn: HTMLElement, label: string) {
+    btn.addEventListener('pointerenter', () => {
+      if (this.tooltipTimer) clearTimeout(this.tooltipTimer);
+      this.tooltipTimer = setTimeout(() => {
+        this.tooltipTimer = null;
+        this.showTooltip(btn, label);
+      }, BTN_TOOLTIP_DELAY_MS);
+    });
+    const dismiss = () => {
+      if (this.tooltipTimer) {
+        clearTimeout(this.tooltipTimer);
+        this.tooltipTimer = null;
+      }
+      this.hideTooltip();
+    };
+    btn.addEventListener('pointerleave', dismiss);
+    btn.addEventListener('pointerdown', dismiss);
+  }
+
+  private showTooltip(btn: HTMLElement, label: string) {
+    const r = btn.getBoundingClientRect();
+    this.tooltipEl.textContent = label;
+    this.tooltipEl.style.left = r.left + r.width / 2 + 'px';
+    this.tooltipEl.style.top = r.top - 8 + 'px';
+    this.tooltipEl.style.transition = `opacity ${BTN_TOOLTIP_FADE_IN_MS}ms ease-out`;
+    this.tooltipEl.style.opacity = '1';
+    // Auto-dismiss after a short hold even if the cursor stays on the control.
+    if (this.tooltipHideTimer) clearTimeout(this.tooltipHideTimer);
+    this.tooltipHideTimer = setTimeout(() => {
+      this.tooltipHideTimer = null;
+      this.fadeOutTooltip();
+    }, BTN_TOOLTIP_HOLD_MS);
+  }
+
+  private hideTooltip() {
+    if (this.tooltipHideTimer) {
+      clearTimeout(this.tooltipHideTimer);
+      this.tooltipHideTimer = null;
+    }
+    this.fadeOutTooltip();
+  }
+
+  // Soft, slow fade so the label drifts away instead of blinking off.
+  private fadeOutTooltip() {
+    this.tooltipEl.style.transition = `opacity ${BTN_TOOLTIP_FADE_OUT_MS}ms ease-out`;
+    this.tooltipEl.style.opacity = '0';
   }
 
   // ── Resize history panel ─────────────────────────────────────────────────
@@ -999,6 +1089,25 @@ function injectStylesOnce() {
     .minari-curious-eject:disabled {
       opacity: 0.5;
       cursor: default;
+    }
+
+    /* Hover tooltip — a glass pill centred above the hovered control. */
+    .minari-curious-tooltip {
+      position: fixed;
+      z-index: 1001;
+      pointer-events: none;
+      font-size: 12px;
+      color: #5a7a8c;
+      white-space: nowrap;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(248, 252, 255, 0.92);
+      border: 1px solid rgba(215, 234, 244, 0.9);
+      box-shadow: 0 2px 8px rgba(53, 84, 104, 0.12);
+      opacity: 0;
+      /* Default fade; showTooltip / fadeOutTooltip override per direction. */
+      transition: opacity 450ms ease-out;
+      transform: translate(-50%, -100%);
     }
   `;
   document.head.appendChild(style);

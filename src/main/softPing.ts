@@ -25,8 +25,10 @@ const FIRE_PROB = IS_DEV ? 0.5 : 0.18;
 // word_curiosity has its own clock independent of the noticing-ping rhythm:
 // after an unknown word has aged this long Minari is allowed to ask about it,
 // and once asked the same channel cools down before another word can fire.
+// Dev cooldown is 30 s (was 60 s) so the re-ask lands naturally on camera
+// during demo recording; production keeps its once-a-day cadence.
 const CURIOSITY_DELAY_S = IS_DEV ? 30 : 3 * 86400;
-const CURIOSITY_COOLDOWN_MS = IS_DEV ? 60 * 1000 : 86400 * 1000;
+const CURIOSITY_COOLDOWN_MS = IS_DEV ? 30 * 1000 : 86400 * 1000;
 
 const KEY_PINGS_TODAY = 'pings_today';
 const KEY_PING_DAY = 'ping_day';

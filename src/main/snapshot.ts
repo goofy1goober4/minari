@@ -1,4 +1,4 @@
-import { getState, setState, getRecentDiary, countConversationsSince } from './memory/repo';
+import { getState, setState, getRecentDiaries, countConversationsSince } from './memory/repo';
 import { noteRecentSpoken } from './llm/recentSpoken';
 import {
   ACTIVITIES,
@@ -117,7 +117,7 @@ export function computeBootState(now = Date.now()): {
   // has an entry to peek at. Its weight scales with recent interaction volume:
   // no chats in the last day → out; 1–5 → one slot; 6+ → two.
   let diarySlots = 0;
-  if (getRecentDiary() !== null) {
+  if (getRecentDiaries(1).length > 0) {
     const recentChats = countConversationsSince(now - DIARY_INTERACTION_WINDOW_MS);
     diarySlots = recentChats === 0 ? 0 : recentChats <= 5 ? 1 : 2;
   }

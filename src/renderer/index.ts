@@ -11,6 +11,8 @@ const LONGPRESS_MS = 500;
 const LONGPRESS_TOLERANCE_PX = 6;
 // Diary peek — ms the startled face is held before the flustered fast-blink.
 const DIARY_PEEK_SURPRISE_MS = 900;
+// Diary peek — a peek shows a random line from this many most-recent entries.
+const DIARY_PEEK_POOL = 5;
 // Diary hover hint — dwell before it appears, retired after this many shows
 // (session-local count).
 const DIARY_HINT_DELAY_MS = 200;
@@ -152,22 +154,34 @@ async function boot() {
   };
 
   // ── Diary peek ───────────────────────────────────────────────────────────
-  // A tap on Minari in the diary pose shows her most recent diary line: she
-  // startles (wide-eyed surprise), then blinks fast in a flustered flurry,
-  // settling once the bubble fades. No diary entry yet → no reaction.
+  // A tap on Minari in the diary pose shows one of her recent diary lines —
+  // a random pick from the last few entries, never the one shown on the
+  // immediately preceding peek. She startles (wide-eyed surprise), then blinks
+  // fast in a flustered flurry, settling once the bubble fades. No diary entry
+  // yet → no reaction; with only one entry, a repeat peek stays quiet.
   let diaryPeekActive = false;
+  let lastPeekedDiary: string | null = null;
   const peekDiary = async () => {
-    let entry: string | null = null;
+    let entries: string[] = [];
     try {
-      entry = await window.minari.getRecentDiary();
+      entries = await window.minari.getRecentDiaries(DIARY_PEEK_POOL);
     } catch (err) {
       console.error('[diary-peek] failed:', err);
     }
-    if (!entry) {
+    if (entries.length === 0) {
       console.log('[diary-peek] no diary entry — no reaction');
       return;
     }
-    console.log('[diary-peek] peeking recent diary');
+    // Drop the line shown on the previous peek so two taps never repeat. With
+    // a single entry that was just shown, the pool empties → stay quiet.
+    const pool = entries.filter((e) => e !== lastPeekedDiary);
+    if (pool.length === 0) {
+      console.log('[diary-peek] only entry already shown — no reaction');
+      return;
+    }
+    const entry = pool[Math.floor(Math.random() * pool.length)];
+    lastPeekedDiary = entry;
+    console.log('[diary-peek] peeking diary (' + pool.length + ' candidate(s))');
     hideDiaryHint();
     sprout.startle();
     sprout.setPeekFace('surprise');

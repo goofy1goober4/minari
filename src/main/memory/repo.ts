@@ -61,13 +61,14 @@ export function recordDiary(content: string, mood: Mood) {
   );
 }
 
-// Most recent diary entry's text, or null if none has been written yet.
-export function getRecentDiary(): string | null {
+// Up to `limit` most recent diary entries' text, newest first. Empty array if
+// none has been written yet.
+export function getRecentDiaries(limit = 5): string[] {
   const db = openDb();
-  const row = db
-    .prepare('SELECT content FROM diary ORDER BY id DESC LIMIT 1')
-    .get() as { content: string } | undefined;
-  return row?.content ?? null;
+  const rows = db
+    .prepare('SELECT content FROM diary ORDER BY id DESC LIMIT ?')
+    .all(limit) as { content: string }[];
+  return rows.map((r) => r.content);
 }
 
 export function getTodaysMessageCount(now = Date.now()): number {

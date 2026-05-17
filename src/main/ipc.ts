@@ -4,7 +4,7 @@ import { speakAsMinari } from './llm/speak';
 import { handleUserInput } from './llm/converse';
 import { BirthStateMachine } from './birth';
 import { computeBootState, setCurrent, markInteraction, noteSpoken } from './snapshot';
-import { getState, setState, recordMessage, getRecentHistory, getRecentDiary } from './memory/repo';
+import { getState, setState, recordMessage, getRecentHistory, getRecentDiaries } from './memory/repo';
 import { reactToImage, readImageAsBase64 } from './llm/imageReact';
 import { getCurrentStage } from './growth';
 import {
@@ -145,7 +145,10 @@ export function registerIpc() {
     },
   );
 
-  ipcMain.handle('minari:get-recent-diary', (): string | null => getRecentDiary());
+  ipcMain.handle(
+    'minari:get-recent-diaries',
+    (_event, limit: number = 5): string[] => getRecentDiaries(limit),
+  );
 
   ipcMain.on('minari:move-window', (event, dx: number, dy: number) => {
     const win = BrowserWindow.fromWebContents(event.sender);
