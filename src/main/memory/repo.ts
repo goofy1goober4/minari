@@ -52,6 +52,15 @@ export function recordDiary(content: string, mood: Mood) {
   );
 }
 
+// Most recent diary entry's text, or null if none has been written yet.
+export function getRecentDiary(): string | null {
+  const db = openDb();
+  const row = db
+    .prepare('SELECT content FROM diary ORDER BY id DESC LIMIT 1')
+    .get() as { content: string } | undefined;
+  return row?.content ?? null;
+}
+
 export function getTodaysMessageCount(now = Date.now()): number {
   const db = openDb();
   const start = startOfLocalDay(now);

@@ -126,6 +126,10 @@ export class Minari extends Container {
   private blinkClosedHoldMs = BLINK_CLOSED_MS_DEFAULT;
   private nextBlinkAtMs = 0;
 
+  // Diary-peek expression override — 'open'/'half' force that face and pause
+  // the blink loop; null resumes normal blinking.
+  private peekFace: 'open' | 'half' | null = null;
+
   // Auto-tilt state — currentTiltDir non-null means we're holding a tilt now.
   private currentTiltDir: 'tiltL' | 'tiltR' | null = null;
   private tiltEndsAtMs = 0;
@@ -366,6 +370,17 @@ export class Minari extends Container {
   }
   notice(): void {}
 
+  // Diary-peek expression: 'open' (startled) → 'half' (caught) → null (resumes
+  // normal blinking).
+  setPeekFace(face: 'open' | 'half' | null): void {
+    this.peekFace = face;
+    if (face === null) {
+      this.blinkPhase = 'idle';
+      this.scheduleNextBlink();
+    }
+    this.updateFaceAlphas();
+  }
+
   // Container-local y for the speech bubble's bottom edge — just above the
   // head. Per-pose (sitting heads sit lower) and scales with SPRITE_SCALE.
   bubbleAnchorY(): number {
@@ -463,7 +478,12 @@ export class Minari extends Container {
 
     // Blink state machine.
     this.tickBlink();
-    if (this.blinkPhase === 'idle' && this.currentTiltDir === null && this.elapsedMs >= this.nextBlinkAtMs) {
+    if (
+      this.blinkPhase === 'idle' &&
+      this.currentTiltDir === null &&
+      this.peekFace === null &&
+      this.elapsedMs >= this.nextBlinkAtMs
+    ) {
       this.startBlink(this.closedDurationMs());
     }
   }
@@ -549,6 +569,16 @@ export class Minari extends Container {
   // opacity dipping (0.5 + 0.5 only sums to 0.75 in alpha compositing — that
   // gap reads as a brightness flicker each blink, hence keep-open-1 instead).
   private updateFaceAlphas(): void {
+    // Diary-peek override — show the forced face; the blink machine is paused.
+    if (this.peekFace !== null) {
+      const openA = this.peekFace === 'open' ? 1 : 0;
+      for (const dir of ['front', 'tiltL', 'tiltR'] as FaceDir[]) {
+        this.faceOpenSprites[dir].alpha = dir === this.faceDir ? openA : 0;
+      }
+      this.faceHalf.alpha = this.peekFace === 'half' ? 1 : 0;
+      this.faceClosed.alpha = 0;
+      return;
+    }
     // Poses with a discrete mid-blink frame (diary) show that frame outright
     // during the fade phases; others crossfade default↔closed via alpha.
     const hasHalf = this.poseConfig.faceHalf !== null;

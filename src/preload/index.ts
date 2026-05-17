@@ -82,6 +82,8 @@ contextBridge.exposeInMainWorld('minari', {
     ipcRenderer.invoke('minari:converse', text),
   getRecentMessages: (limit: number = 20): Promise<RecentMessage[]> =>
     ipcRenderer.invoke('minari:get-recent-messages', limit),
+  getRecentDiary: (): Promise<string | null> =>
+    ipcRenderer.invoke('minari:get-recent-diary'),
   getCuriousPos: (): Promise<{ x: number; y: number } | null> =>
     ipcRenderer.invoke('minari:get-curious-pos'),
   setCuriousPos: (x: number, y: number): void => {

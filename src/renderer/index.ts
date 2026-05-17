@@ -9,6 +9,12 @@ import type { BootState, GrowthStage } from '../shared/snapshot';
 
 const LONGPRESS_MS = 500;
 const LONGPRESS_TOLERANCE_PX = 6;
+// Diary peek — ms holding the startled wide-eyed face before it droops to the
+// half-lidded "caught" look. Hover hint — dwell before it appears, retired
+// after this many shows (session-local count).
+const DIARY_PEEK_CAUGHT_MS = 450;
+const DIARY_HINT_DELAY_MS = 200;
+const DIARY_HINT_MAX = 3;
 
 type Mode = 'birth' | 'idle' | 'input';
 
@@ -138,6 +144,74 @@ async function boot() {
       bubble.show(fragment);
     } finally {
       generating = false;
+    }
+  };
+
+  // ── Diary peek ───────────────────────────────────────────────────────────
+  // A tap on Minari in the diary pose shows her most recent diary line: she
+  // startles (wide eyes), droops to a half-lidded "caught" look, and reverts
+  // once the bubble fades. No diary entry yet → no reaction.
+  let diaryPeekActive = false;
+  const peekDiary = async () => {
+    let entry: string | null = null;
+    try {
+      entry = await window.minari.getRecentDiary();
+    } catch (err) {
+      console.error('[diary-peek] failed:', err);
+    }
+    if (!entry) {
+      console.log('[diary-peek] no diary entry — no reaction');
+      return;
+    }
+    console.log('[diary-peek] peeking recent diary');
+    hideDiaryHint();
+    sprout.startle();
+    sprout.setPeekFace('open');
+    bubble.show(entry);
+    diaryPeekActive = true;
+    window.setTimeout(() => {
+      if (diaryPeekActive) sprout.setPeekFace('half');
+    }, DIARY_PEEK_CAUGHT_MS);
+  };
+
+  // Hover hint — a tiny "📖" above Minari for the first few diary-pose hovers,
+  // then retired. 200 ms dwell so a passing cursor doesn't flash it.
+  let diaryHintShows = 0;
+  let diaryHovering = false;
+  let diaryHintTimer: number | null = null;
+  const diaryHintEl = document.createElement('div');
+  diaryHintEl.textContent = '📖';
+  diaryHintEl.style.cssText =
+    'position:fixed;z-index:999;pointer-events:none;font-size:15px;' +
+    'padding:3px 9px;border-radius:999px;background:rgba(248,252,255,0.9);' +
+    'border:1px solid rgba(215,234,244,0.9);box-shadow:0 2px 8px rgba(53,84,104,0.12);' +
+    'opacity:0;transition:opacity 160ms ease-out;transform:translate(-50%,-100%);';
+  document.body.appendChild(diaryHintEl);
+  const showDiaryHint = () => {
+    diaryHintEl.style.left = sprout.x + 'px';
+    diaryHintEl.style.top = sprout.y + sprout.bubbleAnchorY() + 'px';
+    diaryHintEl.style.opacity = '1';
+  };
+  function hideDiaryHint() {
+    diaryHintEl.style.opacity = '0';
+  }
+  const updateDiaryHover = (active: boolean) => {
+    if (active === diaryHovering) return;
+    diaryHovering = active;
+    if (active) {
+      if (diaryHintShows >= DIARY_HINT_MAX) return;
+      diaryHintTimer = window.setTimeout(() => {
+        diaryHintTimer = null;
+        if (!diaryHovering) return;
+        showDiaryHint();
+        diaryHintShows++;
+      }, DIARY_HINT_DELAY_MS);
+    } else {
+      if (diaryHintTimer !== null) {
+        clearTimeout(diaryHintTimer);
+        diaryHintTimer = null;
+      }
+      hideDiaryHint();
     }
   };
 
@@ -294,10 +368,16 @@ async function boot() {
   app.ticker.add((ticker) => {
     sprout.breathe(ticker.deltaMS);
     bubble.update(ticker.deltaMS);
+    // Diary peek — revert Minari's expression once the diary bubble fades.
+    if (diaryPeekActive && !bubble.isVisible()) {
+      diaryPeekActive = false;
+      sprout.setPeekFace(null);
+    }
   });
 
   window.addEventListener('pointerdown', (e) => {
     isPointerDown = true;
+    updateDiaryHover(false);
     console.log(
       '[gesture] pointerdown at ' +
         Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' mode=' + mode,
@@ -382,7 +462,8 @@ async function boot() {
         Math.round(performance.now() - lpDownTime) + 'ms)',
     );
     if (bubble.isVisible() || generating) return;
-    await speakAndShow();
+    if (pose === 'diary') await peekDiary();
+    else await speakAndShow();
   });
 
   let lastX: number | null = null;
@@ -435,10 +516,15 @@ async function boot() {
       setClickThroughIfChanged(false);
       return;
     }
-    setClickThroughIfChanged(!hitTest(e.clientX, e.clientY));
+    const overMinari = hitTest(e.clientX, e.clientY);
+    setClickThroughIfChanged(!overMinari);
+    updateDiaryHover(
+      overMinari && pose === 'diary' && mode === 'idle' && !bubble.isVisible(),
+    );
   });
   window.addEventListener('pointerleave', () => {
     isPointerDown = false;
+    updateDiaryHover(false);
     if (mode === 'birth') return;
     clearLongpress();
     sprout.onPointerLeave();

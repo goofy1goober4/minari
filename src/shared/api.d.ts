@@ -35,6 +35,7 @@ declare global {
       getStage(): Promise<GrowthStage>;
       converse(text: string): Promise<{ text: string; expectFollowup?: boolean }>;
       getRecentMessages(limit?: number): Promise<RecentMessage[]>;
+      getRecentDiary(): Promise<string | null>;
       getCuriousPos(): Promise<{ x: number; y: number } | null>;
       setCuriousPos(x: number, y: number): void;
       getCuriousHistoryHeight(): Promise<number | null>;
