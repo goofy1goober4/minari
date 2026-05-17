@@ -53,8 +53,10 @@ async function boot() {
   document.body.appendChild(app.canvas);
 
   const sprout = new Minari(pose);
-  sprout.x = app.screen.width - 500;
-  sprout.y = app.screen.height - 80;
+  // Spawn anchor — 5px left / 10px up of the prior spot. The birth seed,
+  // sprout and Minari all derive from this, and syncBubble() picks it up.
+  sprout.x = app.screen.width - 505;
+  sprout.y = app.screen.height - 90;
   // During D+0 birth the seed + germinating sprout own the screen; the full
   // character is revealed by runBirthScene. Hidden here so it never flashes.
   if (!birthState.completed) sprout.visible = false;

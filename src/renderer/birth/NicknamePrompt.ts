@@ -24,6 +24,11 @@ export class NicknamePrompt {
   private resolver: ((value: string) => void) | null = null;
   private submitHandler: () => void;
   private keyHandler: (e: KeyboardEvent) => void;
+  // Window click-through follows the cursor — over the card it captures
+  // clicks, off it passes through — so the prompt overlays without blocking
+  // the desktop. `passThrough` dedupes the IPC.
+  private hoverHandler: (e: PointerEvent) => void;
+  private passThrough: boolean | null = null;
 
   // Drag state — see onDragStart. Position is (left, bottom-from-window-bottom).
   private dragging = false;
@@ -98,10 +103,24 @@ export class NicknamePrompt {
     this.el.addEventListener('pointerdown', (e) => this.onDragStart(e));
     this.input.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.button.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+    // Cursor over the card → window captures clicks; off it → pass-through.
+    this.hoverHandler = (e: PointerEvent) => {
+      const r = this.el.getBoundingClientRect();
+      const over =
+        e.clientX >= r.left && e.clientX <= r.right &&
+        e.clientY >= r.top && e.clientY <= r.bottom;
+      this.setPassThrough(!over);
+    };
   }
 
   mount(parent: HTMLElement = document.body) {
     parent.appendChild(this.el);
+    // Start interactive; the hover handler flips to pass-through as soon as
+    // the cursor moves off the card. macOS forwards hover even while the
+    // window is click-through, so the cursor can always re-enter the card.
+    this.setPassThrough(false);
+    document.addEventListener('pointermove', this.hoverHandler);
     requestAnimationFrame(() => {
       // Reuse the dragged spot; else sit to Minari's left like the curious
       // prompt; else fall back to bottom-centre.
@@ -134,9 +153,19 @@ export class NicknamePrompt {
   }
 
   async dismiss(): Promise<void> {
+    document.removeEventListener('pointermove', this.hoverHandler);
+    // Hand the window back to full pass-through as the prompt leaves.
+    window.minari.setClickThrough(true);
     this.el.classList.remove('is-visible');
     await new Promise((r) => setTimeout(r, 220));
     this.el.remove();
+  }
+
+  // IPC the window click-through state only on an actual change.
+  private setPassThrough(on: boolean): void {
+    if (on === this.passThrough) return;
+    this.passThrough = on;
+    window.minari.setClickThrough(on);
   }
 
   // ── Drag ───────────────────────────────────────────────────────────────

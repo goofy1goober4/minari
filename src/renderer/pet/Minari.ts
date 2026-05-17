@@ -70,6 +70,14 @@ const SHADOW_W = 60;
 const SHADOW_H = 12;
 const SHADOW_ALPHA = 0.15;
 const SHADOW_BREATH_AMP = 0.03;
+// First breath (D+0 birth) — deeper + slower than the idle swell so it reads
+// as Minari's deliberate first breath: ×2 amplitude, ×1.5 period.
+const FIRST_BREATH_PERIOD_S = BREATH_PERIOD_S * 1.5;
+const FIRST_BREATH_SCALE_AMP = BREATH_SCALE_AMP * 2;
+const FIRST_BREATH_SHADOW_AMP = SHADOW_BREATH_AMP * 2;
+// After the first breath she opens her eyes slowly over this long — a soft,
+// savouring crossfade rather than a normal snap-open.
+const EYE_OPEN_MS = 900;
 const SHADOW_BLUR_STRENGTH = 0.5;
 // Gap (px) between the head top and the speech bubble's bottom edge.
 const BUBBLE_GAP = 4;
@@ -132,6 +140,15 @@ export class Minari extends Container {
   private readonly poseConfig: PoseConfig;
 
   private elapsedMs = 0;
+
+  // Torso-breath phase accumulator — advanced by dt each tick so the period
+  // can change (idle ↔ first breath) without a sine discontinuity.
+  private breathPhase = 0;
+  // First breath (D+0 birth): eyes shut + deeper, slower torso swell.
+  private firstBreathing = false;
+  // Soft eye-open after the first breath: ≥0 = ms into the crossfade,
+  // -1 = inactive.
+  private eyeOpenElapsedMs = -1;
 
   // Blink state machine.
   private blinkPhase: BlinkPhase = 'idle';
@@ -417,6 +434,26 @@ export class Minari extends Container {
     this.updateFaceAlphas();
   }
 
+  // Birth "first breath" — eyes shut + the deeper, slower breath cycle. Pass
+  // `false` to open the eyes and resume normal blinking + idle breathing.
+  firstBreath(on: boolean): void {
+    this.firstBreathing = on;
+    if (on) {
+      // Start the cycle from a neutral chest so the first inhale reads clean.
+      this.breathPhase = 0;
+      // She holds still through the first breath — no idle head-tilt, no blink.
+      this.currentTiltDir = null;
+      this.faceDir = 'front';
+      this.blinkPhase = 'idle';
+      this.eyeOpenElapsedMs = -1;
+    } else {
+      // Don't snap her eyes open — ease them open over EYE_OPEN_MS. breathe()
+      // advances the crossfade and resumes blink + tilt once it completes.
+      this.eyeOpenElapsedMs = 0;
+    }
+    this.updateFaceAlphas();
+  }
+
   // Quick repeated "flustered" blinks — the beat after a diary peek's surprise.
   flusterBlink(): void {
     this.flusterBlinksLeft = FLUSTER_BLINK_COUNT;
@@ -460,13 +497,18 @@ export class Minari extends Container {
     const t = this.elapsedMs / 1000;
     const dt = Math.min(deltaMS / 1000, 1 / 30);
 
-    // Torso breathing.
-    const breath = Math.sin((t * 2 * Math.PI) / BREATH_PERIOD_S);
+    // Torso breathing — phase accumulator so the period can change (idle ↔
+    // first breath) without a sine jump. First breath: deeper + slower swell.
+    const breathPeriod = this.firstBreathing ? FIRST_BREATH_PERIOD_S : BREATH_PERIOD_S;
+    const breathAmp = this.firstBreathing ? FIRST_BREATH_SCALE_AMP : BREATH_SCALE_AMP;
+    const shadowAmp = this.firstBreathing ? FIRST_BREATH_SHADOW_AMP : SHADOW_BREATH_AMP;
+    this.breathPhase += dt * ((2 * Math.PI) / breathPeriod);
+    const breath = Math.sin(this.breathPhase);
     this.torso.y = breath * BREATH_Y_AMP_PX;
-    this.torso.scale.set(1 + breath * BREATH_SCALE_AMP);
+    this.torso.scale.set(1 + breath * breathAmp);
     // Shadow follows the breath horizontally only — vertical scale on a floor
     // shadow reads as the shadow lifting off the ground.
-    this.shadow.scale.x = 1 + breath * SHADOW_BREATH_AMP;
+    this.shadow.scale.x = 1 + breath * shadowAmp;
 
     // Sprout sway — spring chases a slow sine target. Two-frequency target gives
     // an organic, slightly irregular drift.
@@ -521,8 +563,8 @@ export class Minari extends Container {
     );
 
     // Auto-tilt scheduler — idle pose only (a sitting character tilting its
-    // head reads as unnatural).
-    if (this.poseConfig.tilt) {
+    // head reads as unnatural), and never during the first breath / eye-open.
+    if (this.poseConfig.tilt && !this.firstBreathing && this.eyeOpenElapsedMs < 0) {
       if (this.currentTiltDir !== null) {
         if (this.elapsedMs >= this.tiltEndsAtMs) {
           this.endTilt();
@@ -542,12 +584,27 @@ export class Minari extends Container {
     this.faceLayer.rotation = this.faceWobbleAng + dirAng;
     this.body.rotation = this.bodyWobbleAng + dirAng * TILT_BODY_RATIO;
 
+    // Soft eye-open after the first breath — ease faceClosed → faceOpen, then
+    // hand control back to the idle blink + tilt loops.
+    if (this.eyeOpenElapsedMs >= 0) {
+      this.eyeOpenElapsedMs += deltaMS;
+      if (this.eyeOpenElapsedMs >= EYE_OPEN_MS) {
+        this.eyeOpenElapsedMs = -1;
+        this.blinkPhase = 'idle';
+        this.scheduleNextBlink();
+        this.scheduleNextTilt();
+      }
+      this.updateFaceAlphas();
+    }
+
     // Blink state machine.
     this.tickBlink();
     if (
       this.blinkPhase === 'idle' &&
       this.currentTiltDir === null &&
       this.peekFace === null &&
+      !this.firstBreathing &&
+      this.eyeOpenElapsedMs < 0 &&
       this.elapsedMs >= this.nextBlinkAtMs
     ) {
       this.startBlink(this.closedDurationMs());
@@ -648,6 +705,31 @@ export class Minari extends Container {
   // opacity dipping (0.5 + 0.5 only sums to 0.75 in alpha compositing — that
   // gap reads as a brightness flicker each blink, hence keep-open-1 instead).
   private updateFaceAlphas(): void {
+    // First breath — eyes held shut while Minari takes her first deep breaths.
+    if (this.firstBreathing) {
+      for (const dir of ['front', 'tiltL', 'tiltR'] as FaceDir[]) {
+        this.faceOpenSprites[dir].alpha = 0;
+      }
+      this.faceClosed.alpha = 1;
+      this.faceHalf.alpha = 0;
+      this.faceSurprise.alpha = 0;
+      return;
+    }
+    // Soft eye-open transition after the first breath — the open face stays
+    // fully opaque underneath while the closed face fades away over it on a
+    // gentle smoothstep. (Cross-fading both would composite to ~0.75 opacity
+    // mid-way and read as a translucent head.)
+    if (this.eyeOpenElapsedMs >= 0) {
+      const p = Math.min(1, this.eyeOpenElapsedMs / EYE_OPEN_MS);
+      const e = p * p * (3 - 2 * p);
+      for (const dir of ['front', 'tiltL', 'tiltR'] as FaceDir[]) {
+        this.faceOpenSprites[dir].alpha = dir === this.faceDir ? 1 : 0;
+      }
+      this.faceClosed.alpha = 1 - e;
+      this.faceHalf.alpha = 0;
+      this.faceSurprise.alpha = 0;
+      return;
+    }
     // Diary-peek override — show the forced face; the blink machine is paused.
     if (this.peekFace !== null) {
       for (const dir of ['front', 'tiltL', 'tiltR'] as FaceDir[]) {
