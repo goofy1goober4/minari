@@ -1,11 +1,9 @@
 import { BrowserWindow, screen } from 'electron';
 
-// Click-through bridging. macOS forwards hover events to a click-through
-// window via setIgnoreMouseEvents(true, { forward: true }) — Windows ignores
-// the `forward` option entirely, so a click-through window there receives no
-// mousemove at all and the renderer can never hit-test its way back to
-// interactive. applyClickThrough keeps the platform branch in one place;
-// startCursorPoll fills the Windows gap with a main-process cursor poll.
+// Click-through bridging. setIgnoreMouseEvents(true, { forward: true })
+// forwards mousemove (hover) but NOT OS-level drag-enter, and Windows ignores
+// `forward` entirely — so on both platforms a click-through window can't see
+// a file being dragged in. startCursorPoll covers that gap.
 
 export function applyClickThrough(win: BrowserWindow, passThrough: boolean): void {
   if (win.isDestroyed()) return;
@@ -23,15 +21,14 @@ export function applyClickThrough(win: BrowserWindow, passThrough: boolean): voi
 // renderer feeling laggy; no need to chase 16 ms.
 const POLL_MS = 30;
 
-// Windows/Linux only: poll the OS cursor and push window-relative coords to the
-// renderer, which hit-tests them against the alpha mask. macOS is left alone —
-// forward:true already delivers the hover events there.
+// Poll the OS cursor and push window-relative coords to the renderer, which
+// hit-tests them against the alpha mask. Runs on every platform: Windows
+// never forwards hover to a click-through window, and on macOS forward:true
+// forwards mousemove but NOT OS-level drag-enter — so without this an external
+// file drag never reaches dragover/drop (df5ffb6 removed the original
+// startCursorWatch and silently broke image drops).
 export function startCursorPoll(win: BrowserWindow): void {
   console.log('[cursor-poll] startCursorPoll platform=' + process.platform);
-  if (process.platform === 'darwin') {
-    console.log('[cursor-poll] skipped (darwin — forward:true handles hover)');
-    return;
-  }
 
   let timer: ReturnType<typeof setInterval> | null = null;
   let ticks = 0;

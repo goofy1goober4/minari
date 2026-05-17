@@ -450,17 +450,37 @@ async function boot() {
     clearLongpress();
   });
 
+  let sawDragEnter = false;
+  window.addEventListener('dragenter', () => {
+    if (!sawDragEnter) {
+      sawDragEnter = true;
+      console.log('[gift] dragenter — a drag reached the window');
+    }
+  });
   window.addEventListener('dragover', (e) => {
     e.preventDefault();
   });
   window.addEventListener('drop', async (e) => {
     e.preventDefault();
-    if (mode !== 'idle') return;
-    if (generating || bubble.isVisible()) return;
+    console.log('[gift] drop event fired');
+    if (mode !== 'idle') {
+      console.log('[gift] drop ignored: mode=' + mode);
+      return;
+    }
+    if (generating || bubble.isVisible()) {
+      console.log('[gift] drop ignored: busy (generating=' + generating + ' bubble=' + bubble.isVisible() + ')');
+      return;
+    }
     const file = e.dataTransfer?.files[0];
-    if (!file || !file.type.startsWith('image/')) return;
+    if (!file || !file.type.startsWith('image/')) {
+      console.log('[gift] drop ignored: no image file (file=' + (file ? file.type : 'none') + ')');
+      return;
+    }
     const path = window.minari.getPathForFile(file);
-    if (!path) return;
+    if (!path) {
+      console.log('[gift] drop ignored: getPathForFile empty');
+      return;
+    }
     console.log('[gift] dropped: ' + path);
     generating = true;
     sprout.nudge();
