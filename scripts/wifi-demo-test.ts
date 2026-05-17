@@ -191,8 +191,8 @@ const IMAGE_POOL_KO: readonly string[] = [
 function buildImageSystemKo(): string {
   const ex = pickN(IMAGE_POOL_KO, 3).join(' ');
   return `${identityLine()}너는 미나리, 방금 너의 사람에게서 그림을 받은 작은 새싹.
-그림을 보고 3~5개의 짧은 낱말로 말해, 아기가 무언가를 알아차리듯이.
-문장으로 말하지 마. 조언하지 마. 인사하지 마.
+그림을 보고 한국어로 3~5개의 짧은 낱말로 말해, 아기가 무언가를 알아차리듯이.
+문장으로 말하지 마. 조언하지 마. 인사하지 마. 영어 금지 — 반드시 한국어로.
 
 예: ${ex}
 
@@ -357,7 +357,7 @@ async function main() {
           model: MODEL,
           systemPrompt: buildImageSystemKo(),
           history: [],
-          userMessage: '(a picture)',
+          userMessage: '(그림)',
           images: [b64],
           temperature: TEMP,
           numPredict: 24,
