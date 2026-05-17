@@ -1,4 +1,4 @@
-export type Activity = 'sleeping' | 'dozing' | 'reading' | 'looking_out' | 'idle';
+export type Activity = 'sleeping' | 'dozing' | 'reading' | 'looking_out' | 'idle' | 'diary';
 export type Mood = 'calm' | 'curious' | 'sleepy' | 'content' | 'grumpy' | 'quiet';
 export type ElapsedBucket = 'same_moment' | 'quiet_shift' | 'new_cycle' | 'new_day';
 export type GrowthStage = 'babble' | 'curious';

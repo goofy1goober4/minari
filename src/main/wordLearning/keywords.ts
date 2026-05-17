@@ -1,4 +1,4 @@
-import { LANG } from '../llm/lang';
+import { LANG } from '../llm/lang.ts';
 
 const STOPWORDS = new Set(['a', 'an', 'the', 'is', 'it', 'oh', 'mm', 'hmm', 'and', 'or', 'of']);
 

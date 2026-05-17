@@ -28,6 +28,15 @@ export function getRecentHistory(limit = 10): Message[] {
     .map((r) => ({ role: r.role, content: r.content, createdAt: r.created_at }));
 }
 
+// Conversation rows since `sinceMs` — a rough recent-interaction-volume signal.
+export function countConversationsSince(sinceMs: number): number {
+  const db = openDb();
+  const row = db
+    .prepare('SELECT COUNT(*) AS c FROM conversations WHERE created_at >= ?')
+    .get(sinceMs) as { c: number };
+  return row.c;
+}
+
 export function getState(key: string): string | null {
   const db = openDb();
   const row = db.prepare('SELECT value FROM state WHERE key = ?').get(key) as

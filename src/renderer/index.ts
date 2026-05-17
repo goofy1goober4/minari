@@ -25,14 +25,15 @@ async function boot() {
   primeAudio();
 
   // Resolve the body/face pose before constructing Minari. MINARI_POSE env
-  // wins; otherwise a completed-birth resume with activity 'reading' uses the
-  // reading pose. birthState/bootState are fetched once here and reused below.
+  // wins; otherwise a completed-birth resume uses the reading or diary pose
+  // when its activity matches. birthState/bootState are fetched once here.
   const birthState = await window.minari.getBirthState();
   let bootState: BootState | null = null;
   let pose = window.minari.pose;
   if (birthState.completed) {
     bootState = await window.minari.getBootState();
     if (pose === 'idle' && bootState.activity === 'reading') pose = 'reading';
+    if (pose === 'idle' && bootState.activity === 'diary') pose = 'diary';
   }
 
   const app = new Application();

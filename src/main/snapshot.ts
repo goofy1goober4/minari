@@ -1,4 +1,4 @@
-import { getState, setState } from './memory/repo';
+import { getState, setState, getRecentDiary, countConversationsSince } from './memory/repo';
 import { noteRecentSpoken } from './llm/recentSpoken';
 import {
   ACTIVITIES,
@@ -21,6 +21,10 @@ const KEY_INTERACTION = 'last_interaction_at';
 const FRESH_AWAKE_ACTIVITIES: readonly Activity[] = ['idle', 'looking_out', 'reading'];
 const FRESH_DAY_MOODS: readonly Mood[] = ['calm', 'curious', 'content'];
 
+// Rolling window for the recent-interaction count that scales the diary
+// activity's weight in computeBootState.
+const DIARY_INTERACTION_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 // Quiet shift = closely related activities. Pick a near-neighbour, not random.
 const QUIET_SHIFT_TRANSITIONS: Record<Activity, readonly Activity[]> = {
   sleeping: ['dozing', 'idle'],
@@ -28,6 +32,7 @@ const QUIET_SHIFT_TRANSITIONS: Record<Activity, readonly Activity[]> = {
   reading: ['idle', 'looking_out'],
   looking_out: ['idle', 'reading'],
   idle: ['reading', 'looking_out', 'dozing'],
+  diary: ['idle', 'reading'],
 };
 
 let currentActivity: Activity = 'idle';
@@ -104,6 +109,20 @@ export function computeBootState(now = Date.now()): {
   const elapsed = now - snapshot.lastSeenAt;
   const bucket = bucketFor(elapsed);
 
+  // Diary joins the candidate pool from quiet_shift onward, but only once she
+  // has an entry to peek at. Its weight scales with recent interaction volume:
+  // no chats in the last day → out; 1–5 → one slot; 6+ → two.
+  let diarySlots = 0;
+  if (getRecentDiary() !== null) {
+    const recentChats = countConversationsSince(now - DIARY_INTERACTION_WINDOW_MS);
+    diarySlots = recentChats === 0 ? 0 : recentChats <= 5 ? 1 : 2;
+  }
+  const withDiary = (pool: readonly Activity[]): readonly Activity[] => {
+    if (diarySlots <= 0) return pool;
+    if (diarySlots === 1) return [...pool, 'diary'];
+    return [...pool, 'diary', 'diary'];
+  };
+
   let activity: Activity;
   let mood: Mood;
   switch (bucket) {
@@ -112,15 +131,15 @@ export function computeBootState(now = Date.now()): {
       mood = snapshot.lastMood;
       break;
     case 'quiet_shift':
-      activity = pick(QUIET_SHIFT_TRANSITIONS[snapshot.lastActivity]);
+      activity = pick(withDiary(QUIET_SHIFT_TRANSITIONS[snapshot.lastActivity]));
       mood = Math.random() < 0.7 ? snapshot.lastMood : pick(MOODS);
       break;
     case 'new_cycle':
-      activity = pick(ACTIVITIES);
+      activity = pick(withDiary(ACTIVITIES));
       mood = pick(MOODS);
       break;
     case 'new_day':
-      activity = pick(FRESH_AWAKE_ACTIVITIES);
+      activity = pick(withDiary(FRESH_AWAKE_ACTIVITIES));
       mood = pick(FRESH_DAY_MOODS);
       break;
   }

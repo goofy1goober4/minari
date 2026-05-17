@@ -43,4 +43,11 @@ export const POSTURE_PRESETS: Record<Activity, PosturePreset> = {
     leafBaseRight: 0,
     breathPeriodSec: 5,
   },
+  // Sitting, bent over the diary — mirrors the reading posture.
+  diary: {
+    leanRad: -0.05,
+    leafBaseLeft: 0.1,
+    leafBaseRight: -0.05,
+    breathPeriodSec: 5,
+  },
 };
