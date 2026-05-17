@@ -202,6 +202,8 @@ export class Minari extends Container {
     this.faceOpenSprites.front.alpha = 1;
 
     this.faceLayer.addChild(...openSprites, this.faceHalf, this.faceClosed, this.sproutSprite);
+    // Per-pose horizontal correction for head art that isn't dead-centre.
+    this.faceLayer.x = this.poseConfig.faceOffsetX * SPRITE_SCALE;
     // Layer order: body → pencil (writing hand) → face.
     this.torso.addChild(this.body, this.pencilSprite, this.faceLayer);
 

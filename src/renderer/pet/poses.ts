@@ -31,6 +31,9 @@ export interface PoseConfig {
   // Head top in canvas px (alpha-bbox top of faceDefault). Anchors the speech
   // bubble above the head; scales with SPRITE_SCALE so it tracks any pose/size.
   headTopY: number;
+  // Horizontal nudge (canvas px, ×SPRITE_SCALE at render) on the whole face
+  // layer — corrects poses where the head art isn't dead-centre over the body.
+  faceOffsetX: number;
 }
 
 export const POSES: Record<Pose, PoseConfig> = {
@@ -44,6 +47,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     hitMaskSprites: ['body', 'sprout', 'face_front_open'],
     shadowYOffset: -8,
     headTopY: 42,
+    faceOffsetX: 0,
   },
   reading: {
     body: 'sit_readingbook',
@@ -55,6 +59,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     hitMaskSprites: ['sit_readingbook', 'reading_book_face_open'],
     shadowYOffset: null, // sitting — no floor shadow
     headTopY: 549,
+    faceOffsetX: 0,
   },
   diary: {
     body: 'diary_body',
@@ -66,5 +71,6 @@ export const POSES: Record<Pose, PoseConfig> = {
     hitMaskSprites: ['diary_body', 'diary_face_open'],
     shadowYOffset: null, // sitting — no floor shadow
     headTopY: 609,
+    faceOffsetX: 27,
   },
 };
