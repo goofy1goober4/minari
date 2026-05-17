@@ -82,6 +82,10 @@ export function getCurrentMood(): Mood {
   return currentMood;
 }
 
+export function getCurrentActivity(): Activity {
+  return currentActivity;
+}
+
 export function setCurrent(activity: Activity, mood: Mood) {
   currentActivity = activity;
   currentMood = mood;

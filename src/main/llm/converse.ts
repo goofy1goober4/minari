@@ -1,9 +1,9 @@
 import { callOllama, type ChatMessage } from './ollama';
-import { curiousSystemPrompt } from './prompts';
+import { curiousSystemPrompt, type CuriousPose } from './prompts';
 import { filterGuardrails } from './guardrails';
 import { MODEL, effectiveTemperature } from './model';
 import { getRecentHistory, recordMessage, recordDiary, getState } from '../memory/repo';
-import { getCurrentMood, noteSpoken } from '../snapshot';
+import { getCurrentMood, getCurrentActivity, noteSpoken } from '../snapshot';
 import {
   exitConfirmingMode,
   exitTeachingMode,
@@ -80,6 +80,15 @@ export async function handleUserInput(rawText: string): Promise<UserInputResult>
   return { text };
 }
 
+// Minari's current pose, for grounding the conversation prompt. MINARI_POSE
+// (demo override) wins; otherwise it follows the resume activity.
+function currentPose(): CuriousPose {
+  const forced = process.env.MINARI_POSE;
+  if (forced === 'reading' || forced === 'diary') return forced;
+  const activity = getCurrentActivity();
+  return activity === 'reading' || activity === 'diary' ? activity : 'idle';
+}
+
 async function converseWithMinari(userText: string): Promise<string> {
   const history: ChatMessage[] = getRecentHistory(HISTORY_TURNS).map((m) => ({
     role: m.role === 'minari' ? 'assistant' : 'user',
@@ -88,7 +97,7 @@ async function converseWithMinari(userText: string): Promise<string> {
 
   const raw = await callOllama({
     model: MODEL,
-    systemPrompt: curiousSystemPrompt(getCurrentMood()),
+    systemPrompt: curiousSystemPrompt(getCurrentMood(), currentPose()),
     history,
     userMessage: userText,
     temperature: effectiveTemperature(0.9),

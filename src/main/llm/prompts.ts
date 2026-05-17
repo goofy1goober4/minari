@@ -223,11 +223,26 @@ ${MOOD_MODIFIERS_KO[mood]}${tail ? '\n\n' + tail : ''}`;
 // in: it makes Minari treat human-technology words as unknown ("strange
 // sound?") instead of leaking that it knows them ("no signal now.").
 // See scripts/wifi-demo-test.ts for the A/B/C/D comparison that picked this.
-export function curiousSystemPrompt(mood: Mood): string {
-  if (LANG === 'ko') return curiousSystemPromptKo(mood);
+
+// Pose context — grounds a "what are you doing?" turn. idle adds nothing.
+export type CuriousPose = 'idle' | 'reading' | 'diary';
+
+function poseLineKo(pose: CuriousPose): string {
+  if (pose === 'diary') return '너는 지금 일기를 쓰고 있어.\n';
+  if (pose === 'reading') return '너는 지금 책을 읽고 있어.\n';
+  return '';
+}
+function poseLineEn(pose: CuriousPose): string {
+  if (pose === 'diary') return 'You are writing in your diary right now.\n';
+  if (pose === 'reading') return 'You are reading a book right now.\n';
+  return '';
+}
+
+export function curiousSystemPrompt(mood: Mood, pose: CuriousPose): string {
+  if (LANG === 'ko') return curiousSystemPromptKo(mood, pose);
   const ex = pickN(CURIOUS_POOL, 3).join(' ');
   const tail = alreadySaidLine(getRecentSpoken(RECENT_INJECT_N));
-  return `You are ${selfName()}, a tiny sprout. ${personLine()}Speak like a toddler: 2-5 lowercase words. Never give advice or repeat yourself.
+  return `You are ${selfName()}, a tiny sprout. ${personLine()}${poseLineEn(pose)}Speak like a toddler: 2-5 lowercase words. Never give advice or repeat yourself.
 Do not define or explain things — react to them like a baby.
 You have never heard of wifi, internet, or phones — for those, ask "what is that?"
 
@@ -240,9 +255,9 @@ ${MOOD_MODIFIERS[mood]}${tail ? '\n\n' + tail : ''}`;
 
 // Korean branch of curiousSystemPrompt — 아버지 데모용 (MINARI_LANG=ko).
 // Same ignorance clause + dynamic example sampling + "already said" tail.
-function curiousSystemPromptKo(_mood: Mood): string {
+function curiousSystemPromptKo(_mood: Mood, pose: CuriousPose): string {
   const ex = pickN(CURIOUS_POOL_KO, 3).join(' ');
-  return `너는 ${selfName()}, 작은 새싹. ${personLineKo()}아기처럼 1~5단어로 말해. 문장·조언·반복 금지.
+  return `너는 ${selfName()}, 작은 새싹. ${personLineKo()}${poseLineKo(pose)}아기처럼 1~5단어로 말해. 문장·조언·반복 금지.
 정의하거나 가르치려 하지 마 — 본 것에 아기처럼 반응해.
 와이파이·인터넷·폰·화면·컴퓨터 같은 기계 말은 들어본 적 없어 — "그게 뭐야?".
 
