@@ -4,7 +4,7 @@ import type { Bubble } from '../ui/Bubble';
 import { Seed } from './Seed';
 import { BirthSprout } from './BirthSprout';
 import { NicknamePrompt } from './NicknamePrompt';
-import { makeVoiceProfile } from '../sound/mumble';
+import { makeVoiceProfile, playMumble } from '../sound/mumble';
 
 const SEED_FADE_IN_MS = 700;
 const SEED_HOLD_MS = 350;
@@ -24,6 +24,9 @@ const LEAF_UNFOLD_MS = 1500;
 // Stage 4: the germinated vector sprout cross-fades into the full Minari PNG.
 const CHARACTER_REVEAL_MS = 900;
 const POST_BIRTH_BEAT_MS = 500;
+// How long Minari holds a name echo ("<name>.") before the scene moves on —
+// long enough to read as savouring the just-heard word.
+const NAME_ECHO_HOLD_MS = 1600;
 
 export interface BirthSceneDeps {
   app: Application;
@@ -106,41 +109,65 @@ export async function runBirthScene({ app, sprout, bubble }: BirthSceneDeps): Pr
   window.minari.setClickThrough(false);
 
   const isKo = window.minari.lang === 'ko';
+  // One mumble voice for every birth beat — Minari while she's still a
+  // toddler-sprout. Calm mood carries no mood-endRise, so the name echoes
+  // settle flat while the "?" questions get their rise from playMumble's own
+  // question handling. The real post-birth voice is restored at the end.
+  const birthVoice = makeVoiceProfile('minari', 'calm');
+  bubble.setVoice(birthVoice);
 
   // Q1 — what should I (Minari, the toddler-sprout) call you?
+  const userQuestion = isKo ? '너... 이름?' : 'you... name?';
   const userPrompt = new NicknamePrompt({
-    question: isKo ? '너... 이름?' : 'you... name?',
+    question: userQuestion,
     placeholder: '...',
     anchor: { x: sprout.x, y: sprout.y },
   });
   userPrompt.mount();
+  void playMumble(userQuestion, birthVoice);
   const nickname = await userPrompt.awaitInput();
   await userPrompt.dismiss();
 
+  // Minari mouths the name back, chewing the new word over.
+  await echoName(bubble, nickname);
+  bubble.dismiss();
+  await delay(POST_BIRTH_BEAT_MS);
+
   // Q2 — what should you (the human) call me?
+  const petQuestion = isKo ? '나... 이름?' : 'me... name?';
   const petPrompt = new NicknamePrompt({
-    question: isKo ? '나... 이름?' : 'me... name?',
+    question: petQuestion,
     placeholder: '...',
     anchor: { x: sprout.x, y: sprout.y },
   });
   petPrompt.mount();
+  void playMumble(petQuestion, birthVoice);
   const petName = await petPrompt.awaitInput();
   petPrompt.setBusy(true);
 
-  let firstFragment: string;
+  // completeBirth still generates + persists the first fragment and the
+  // initial snapshot; we just don't surface that fragment any more — the
+  // birth now closes on Minari mouthing her own new name.
   let resolvedNickname = nickname;
   try {
     const result = await window.minari.completeBirth(nickname, petName);
-    firstFragment = result.firstFragment;
     resolvedNickname = result.nickname;
   } catch (err) {
     console.error('[birth] completeBirth failed:', err);
-    firstFragment = '...';
   }
 
-  bubble.setVoice(makeVoiceProfile(resolvedNickname, 'calm'));
   await petPrompt.dismiss();
-  bubble.show(firstFragment);
+  await echoName(bubble, petName);
+  // Restore the real post-birth voice for any later pings this session.
+  bubble.setVoice(makeVoiceProfile(resolvedNickname, 'calm'));
+}
+
+// Minari mouths a just-heard name back to herself — "<name>." shown in the
+// bubble (Bubble.show plays the mumble through the voice set on it) and held
+// a beat so it reads as savouring the new word.
+async function echoName(bubble: Bubble, name: string): Promise<void> {
+  bubble.show(`${name}.`);
+  await delay(NAME_ECHO_HOLD_MS);
 }
 
 function delay(ms: number): Promise<void> {

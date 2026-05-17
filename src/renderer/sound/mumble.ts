@@ -49,6 +49,12 @@ const SAMPLE_REFERENCE_HZ = 100;
 // Tiny fade so resampled samples don't click on edges.
 const EDGE_FADE_S = 0.005;
 
+// A trailing "?" lifts the final syllable into a question's rising contour —
+// a steeper lift than the mood-based endRise (×1.2). Randomised within this
+// band so repeated questions don't sound identical.
+const QUESTION_END_RISE_MIN = 1.3;
+const QUESTION_END_RISE_MAX = 1.4;
+
 const MOOD_TUNING: Record<
   Mood,
   { pitchMul: number; durationMul: number; volumeMul: number; endRise: boolean }
@@ -196,6 +202,10 @@ export async function playMumble(text: string, profile: VoiceProfile) {
 
   let t = audioCtx.currentTime + 0.005;
   const lastVoiced = findLastVoiced(text);
+  // A trailing "?" (trailing whitespace tolerated) raises the last syllable.
+  const endsWithQuestion = /\?\s*$/.test(text);
+  const questionRise =
+    QUESTION_END_RISE_MIN + Math.random() * (QUESTION_END_RISE_MAX - QUESTION_END_RISE_MIN);
   let mapped = 0; // chars that resolved to a sample name
   let missingBuf = 0; // mapped chars whose sample buffer was not loaded
   let scheduled = 0; // samples actually handed to scheduleSample
@@ -230,7 +240,12 @@ export async function playMumble(text: string, profile: VoiceProfile) {
 
       let pitchHz = profile.basePitchHz;
       pitchHz += (Math.random() - 0.5) * PITCH_JITTER_HZ;
-      if (profile.endRise && i === lastVoiced) pitchHz *= 1.2;
+      if (i === lastVoiced) {
+        // A "?" ending wins over the mood endRise — steeper lift, and the two
+        // must not stack into a chipmunk squeak.
+        if (endsWithQuestion) pitchHz *= questionRise;
+        else if (profile.endRise) pitchHz *= 1.2;
+      }
 
       const playbackRate = (pitchHz / SAMPLE_REFERENCE_HZ) * PLAYBACK_RATE_MULTIPLIER;
       const dur = buf.duration / playbackRate;
