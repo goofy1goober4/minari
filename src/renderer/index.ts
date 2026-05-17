@@ -9,10 +9,10 @@ import type { BootState, GrowthStage } from '../shared/snapshot';
 
 const LONGPRESS_MS = 500;
 const LONGPRESS_TOLERANCE_PX = 6;
-// Diary peek — ms holding the startled wide-eyed face before it droops to the
-// half-lidded "caught" look. Hover hint — dwell before it appears, retired
-// after this many shows (session-local count).
-const DIARY_PEEK_CAUGHT_MS = 450;
+// Diary peek — ms the startled face is held before the flustered fast-blink.
+const DIARY_PEEK_SURPRISE_MS = 900;
+// Diary hover hint — dwell before it appears, retired after this many shows
+// (session-local count).
 const DIARY_HINT_DELAY_MS = 200;
 const DIARY_HINT_MAX = 3;
 
@@ -149,8 +149,8 @@ async function boot() {
 
   // ── Diary peek ───────────────────────────────────────────────────────────
   // A tap on Minari in the diary pose shows her most recent diary line: she
-  // startles (wide eyes), droops to a half-lidded "caught" look, and reverts
-  // once the bubble fades. No diary entry yet → no reaction.
+  // startles (wide-eyed surprise), then blinks fast in a flustered flurry,
+  // settling once the bubble fades. No diary entry yet → no reaction.
   let diaryPeekActive = false;
   const peekDiary = async () => {
     let entry: string | null = null;
@@ -166,12 +166,15 @@ async function boot() {
     console.log('[diary-peek] peeking recent diary');
     hideDiaryHint();
     sprout.startle();
-    sprout.setPeekFace('open');
+    sprout.setPeekFace('surprise');
     bubble.show(entry);
     diaryPeekActive = true;
+    // Hold the startled face briefly, then drop into a flustered fast-blink.
     window.setTimeout(() => {
-      if (diaryPeekActive) sprout.setPeekFace('half');
-    }, DIARY_PEEK_CAUGHT_MS);
+      if (!diaryPeekActive) return;
+      sprout.setPeekFace(null);
+      sprout.flusterBlink();
+    }, DIARY_PEEK_SURPRISE_MS);
   };
 
   // Hover hint — a tiny "📖" above Minari for the first few diary-pose hovers,

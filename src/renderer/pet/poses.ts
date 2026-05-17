@@ -17,6 +17,8 @@ export interface PoseConfig {
   faceHalf: SpriteName | null;
   // Eyes-closed face (blink hold).
   faceClosed: SpriteName;
+  // Wide-eyed surprise face — shown during a diary peek. null = none.
+  faceSurprise: SpriteName | null;
   // Writing-hand overlay (diary pose). null = no pencil layer; when set it
   // sits between body and face and jitters in breathe(). See Minari.pencilSprite.
   pencil: SpriteName | null;
@@ -42,6 +44,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     faceDefault: 'face_front_open',
     faceHalf: null,
     faceClosed: 'face_front_closed',
+    faceSurprise: null,
     pencil: null,
     tilt: true,
     hitMaskSprites: ['body', 'sprout', 'face_front_open'],
@@ -54,6 +57,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     faceDefault: 'reading_book_face_open',
     faceHalf: 'reading_book_face_half',
     faceClosed: 'reading_book_face_closed',
+    faceSurprise: null,
     pencil: null,
     tilt: false,
     hitMaskSprites: ['sit_readingbook', 'reading_book_face_open'],
@@ -66,6 +70,7 @@ export const POSES: Record<Pose, PoseConfig> = {
     faceDefault: 'diary_face_open',
     faceHalf: 'diary_face_half',
     faceClosed: 'diary_face_closed',
+    faceSurprise: 'diary_face_surprise',
     pencil: 'diary_pencil',
     tilt: false,
     hitMaskSprites: ['diary_body', 'diary_face_open'],

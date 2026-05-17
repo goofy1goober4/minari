@@ -74,6 +74,14 @@ const BLINK_CLOSED_MS_DEFAULT = 150;
 const BLINK_CLOSED_MS_SLEEPY = 800;
 const BLINK_INTERVAL_JITTER_MS = 1500;
 
+// Flustered fast-blink after a diary peek — a quick double-blink.
+const FLUSTER_BLINK_COUNT = 2;
+const FLUSTER_BLINK_INTERVAL_MS = 90;
+const FLUSTER_BLINK_CLOSED_MS = 60;
+// diary_face_surprise.png's head is drawn ~26 canvas px right of the other
+// diary faces — shift the surprise sprite back so it lines up.
+const DIARY_SURPRISE_FACE_OFFSET_X = -26;
+
 type FaceDir = 'front' | 'tiltL' | 'tiltR';
 
 const FACE_OPEN_FOR: Record<FaceDir, SpriteName> = {
@@ -107,6 +115,8 @@ export class Minari extends Container {
   private faceClosed = new Sprite(Texture.WHITE);
   // Discrete mid-blink frame — used by the diary pose; alpha 0 otherwise.
   private faceHalf = new Sprite(Texture.WHITE);
+  // Wide-eyed surprise face — shown during a diary peek; alpha 0 otherwise.
+  private faceSurprise = new Sprite(Texture.WHITE);
   private sproutSprite = new Sprite(Texture.WHITE);
   // Writing-hand overlay — visible + animated only in the diary pose.
   private pencilSprite = new Sprite(Texture.WHITE);
@@ -126,9 +136,11 @@ export class Minari extends Container {
   private blinkClosedHoldMs = BLINK_CLOSED_MS_DEFAULT;
   private nextBlinkAtMs = 0;
 
-  // Diary-peek expression override — 'open'/'half' force that face and pause
-  // the blink loop; null resumes normal blinking.
-  private peekFace: 'open' | 'half' | null = null;
+  // Diary-peek expression override — 'surprise' forces the surprised face and
+  // pauses the blink loop; null resumes normal blinking.
+  private peekFace: 'surprise' | null = null;
+  // Remaining fast "flustered" blinks queued by a diary peek.
+  private flusterBlinksLeft = 0;
 
   // Auto-tilt state — currentTiltDir non-null means we're holding a tilt now.
   private currentTiltDir: 'tiltL' | 'tiltR' | null = null;
@@ -164,6 +176,7 @@ export class Minari extends Container {
       ...openSprites,
       this.faceClosed,
       this.faceHalf,
+      this.faceSurprise,
       this.sproutSprite,
     ]) {
       s.anchor.set(0.5, 1);
@@ -177,6 +190,7 @@ export class Minari extends Container {
     for (const s of openSprites) applyPlaceholder(s, PLACEHOLDER.face);
     applyPlaceholder(this.faceClosed, PLACEHOLDER.face);
     applyPlaceholder(this.faceHalf, PLACEHOLDER.face);
+    applyPlaceholder(this.faceSurprise, PLACEHOLDER.face);
     applyPlaceholder(this.sproutSprite, PLACEHOLDER.sprout);
     applyPlaceholder(this.pencilSprite, PLACEHOLDER.body);
     // The pencil rotates about the fist (measured from the diary_pencil.png
@@ -196,12 +210,19 @@ export class Minari extends Container {
 
     this.faceClosed.alpha = 0;
     this.faceHalf.alpha = 0;
+    this.faceSurprise.alpha = 0;
     this.faceOpenSprites.tiltL.alpha = 0;
     this.faceOpenSprites.tiltR.alpha = 0;
     // front starts visible.
     this.faceOpenSprites.front.alpha = 1;
 
-    this.faceLayer.addChild(...openSprites, this.faceHalf, this.faceClosed, this.sproutSprite);
+    this.faceLayer.addChild(
+      ...openSprites,
+      this.faceHalf,
+      this.faceSurprise,
+      this.faceClosed,
+      this.sproutSprite,
+    );
     // Per-pose horizontal correction for head art that isn't dead-centre.
     this.faceLayer.x = this.poseConfig.faceOffsetX * SPRITE_SCALE;
     // Layer order: body → pencil (writing hand) → face.
@@ -293,6 +314,7 @@ export class Minari extends Container {
     const cfg = this.poseConfig;
     const names: SpriteName[] = [cfg.body, cfg.faceDefault, cfg.faceClosed];
     if (cfg.faceHalf) names.push(cfg.faceHalf);
+    if (cfg.faceSurprise) names.push(cfg.faceSurprise);
     if (cfg.pencil) names.push(cfg.pencil);
     const loaded = await Promise.all(
       names.map((n) =>
@@ -305,6 +327,10 @@ export class Minari extends Container {
     applyLoaded(this.faceOpenSprites.front, at(cfg.faceDefault));
     applyLoaded(this.faceClosed, at(cfg.faceClosed));
     if (cfg.faceHalf) applyLoaded(this.faceHalf, at(cfg.faceHalf));
+    if (cfg.faceSurprise) {
+      applyLoaded(this.faceSurprise, at(cfg.faceSurprise));
+      this.faceSurprise.x = DIARY_SURPRISE_FACE_OFFSET_X * SPRITE_SCALE;
+    }
     // Diary writing hand — load + show; other poses leave it hidden.
     if (cfg.pencil) {
       applyLoaded(this.pencilSprite, at(cfg.pencil));
@@ -372,15 +398,21 @@ export class Minari extends Container {
   }
   notice(): void {}
 
-  // Diary-peek expression: 'open' (startled) → 'half' (caught) → null (resumes
-  // normal blinking).
-  setPeekFace(face: 'open' | 'half' | null): void {
+  // Diary-peek expression: 'surprise' holds the startled face; null resumes
+  // normal blinking.
+  setPeekFace(face: 'surprise' | null): void {
     this.peekFace = face;
     if (face === null) {
       this.blinkPhase = 'idle';
       this.scheduleNextBlink();
     }
     this.updateFaceAlphas();
+  }
+
+  // Quick repeated "flustered" blinks — the beat after a diary peek's surprise.
+  flusterBlink(): void {
+    this.flusterBlinksLeft = FLUSTER_BLINK_COUNT;
+    this.scheduleNextBlink();
   }
 
   // Container-local y for the speech bubble's bottom edge — just above the
@@ -535,6 +567,7 @@ export class Minari extends Container {
         break;
       case 'fade_open':
         this.blinkPhase = 'idle';
+        if (this.flusterBlinksLeft > 0) this.flusterBlinksLeft--;
         this.scheduleNextBlink();
         break;
     }
@@ -555,10 +588,16 @@ export class Minari extends Container {
   }
 
   private closedDurationMs(): number {
+    if (this.flusterBlinksLeft > 0) return FLUSTER_BLINK_CLOSED_MS;
     return this.mood === 'sleepy' ? BLINK_CLOSED_MS_SLEEPY : BLINK_CLOSED_MS_DEFAULT;
   }
 
   private scheduleNextBlink(): void {
+    if (this.flusterBlinksLeft > 0) {
+      // Flustered after a diary peek — quick repeated blinks.
+      this.nextBlinkAtMs = this.elapsedMs + FLUSTER_BLINK_INTERVAL_MS;
+      return;
+    }
     const base = this.blinkIntervalMs();
     const jitter = (Math.random() - 0.5) * BLINK_INTERVAL_JITTER_MS;
     this.nextBlinkAtMs = this.elapsedMs + Math.max(1500, base + jitter);
@@ -573,11 +612,11 @@ export class Minari extends Container {
   private updateFaceAlphas(): void {
     // Diary-peek override — show the forced face; the blink machine is paused.
     if (this.peekFace !== null) {
-      const openA = this.peekFace === 'open' ? 1 : 0;
       for (const dir of ['front', 'tiltL', 'tiltR'] as FaceDir[]) {
-        this.faceOpenSprites[dir].alpha = dir === this.faceDir ? openA : 0;
+        this.faceOpenSprites[dir].alpha = 0;
       }
-      this.faceHalf.alpha = this.peekFace === 'half' ? 1 : 0;
+      this.faceSurprise.alpha = 1;
+      this.faceHalf.alpha = 0;
       this.faceClosed.alpha = 0;
       return;
     }
@@ -609,6 +648,7 @@ export class Minari extends Container {
     }
     this.faceHalf.alpha = halfAlpha;
     this.faceClosed.alpha = closedAlpha;
+    this.faceSurprise.alpha = 0;
   }
 }
 
