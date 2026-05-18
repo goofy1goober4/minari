@@ -456,14 +456,21 @@ export class CuriousPrompt {
 
   private toggleMenu() {
     this.menuExpanded = !this.menuExpanded;
-    this.menuEl.hidden = !this.menuExpanded;
     if (!this.menuExpanded) {
+      // Slide + fade out like the history panel, then drop the hidden flag
+      // once the transition has finished.
+      this.menuEl.classList.remove('is-open');
       this.volBarOpen = false;
       this.volBar.hidden = true;
       this.hideConfirm();
+      setTimeout(() => {
+        if (!this.menuExpanded) this.menuEl.hidden = true;
+      }, 260);
       return;
     }
+    this.menuEl.hidden = false;
     requestAnimationFrame(() => {
+      this.menuEl.classList.add('is-open');
       const e = this.ejectBtn.getBoundingClientRect();
       const c = this.closeBtn.getBoundingClientRect();
       const v = this.volBtn.getBoundingClientRect();
@@ -873,6 +880,13 @@ function injectStylesOnce() {
       gap: 2px;
       padding: 0;
       margin: 0;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: opacity 250ms ease-out, transform 250ms ease-out;
+    }
+    .minari-curious-menu.is-open {
+      opacity: 1;
+      transform: translateY(0);
     }
     .minari-curious-menu[hidden] { display: none; }
     .minari-curious-vol-row {
