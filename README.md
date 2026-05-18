@@ -4,7 +4,7 @@
 
 A small offline-first desktop companion that lives in the corner of your screen. She doesn't give advice. She notices small things, mumbles to herself, and remembers you across days.
 
-Built for the **Kaggle Gemma 4 Good** competition (deadline 2026-05-18). Runs entirely on-device with Gemma 4 E2B (3 GB) or E4B (5 GB) via Ollama.
+Built for the **Kaggle Gemma 4 Good** competition (deadline 2026-05-18). Runs entirely on-device with Gemma 4 E2B (3 GB) or E4B (5 GB) via llama.cpp.
 
 ---
 
@@ -36,19 +36,24 @@ Three things to watch in 60 seconds:
 Requirements:
 - macOS 13+ (tested on 25.2). Linux/Windows untested but likely works.
 - Node 20+
-- [Ollama](https://ollama.com) installed and running
-- ~8 GB free disk for the model
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) built — you need the `llama-server` binary
+- Gemma 4 E2B GGUF (~3 GB) plus its multimodal projector (`mmproj`, for vision)
 
 ```bash
-# 1. pull the model (E2B = 3GB, the hackathon track)
-ollama pull gemma4:e2b
+# 1. serve the model — Gemma 4 E2B on llama.cpp's llama-server.
+#    scripts/llamacpp-serve.sh wraps the llama-server call; point it at your
+#    binary + GGUF files (it serves 127.0.0.1:8080 with alias gemma4:e2b):
+LLAMA_BIN=/path/to/llama-server \
+MODEL=/path/to/gemma-4-E2B-it-Q4_K_M.gguf \
+MMPROJ=/path/to/mmproj-F16.gguf \
+  ./scripts/llamacpp-serve.sh
 
-# 2. install + run
+# 2. install + run (in a second terminal)
 npm install
 MINARI_MODEL=gemma4:e2b npm run dev
 ```
 
-Drop `MINARI_MODEL` to default to `gemma4:e4b` (sharper but heavier).
+Minari reaches `llama-server` over its OpenAI-compatible API at `127.0.0.1:8080`. E4B runs the same way — serve the E4B GGUF instead (sharper, heavier).
 
 First launch plays a birth scene: a seed sprouts, you give her a nickname, she says her first word. Subsequent launches resume from where you left off.
 
@@ -69,7 +74,7 @@ D+11  you drop another pizza   →  "pizza!"                    ← remembers
 
 Implementation lives in `src/main/wordLearning/`. Vision results are post-processed against learned rows by keyword overlap (≥30% of the smaller caption); on hit, the new caption's tokens fold back into the row to widen the matching pool over time. No mocked output, no hard-coded vocabulary — Gemma's actual vision call drives everything.
 
-In dev (`npm run dev`), the unknown→curious delay is 30s and the cooldown 60s for fast iteration. In production, 3 days and 24 hours.
+In dev (`npm run dev`), the unknown→curious delay is 30s and the cooldown 30s for fast iteration. In production, 3 days and 24 hours.
 
 ---
 
@@ -111,7 +116,7 @@ Electron main (Node)                Renderer (PixiJS)
 │ soft-ping scheduler  │ ───────►   │ DOM bubble overlay   │
 │ word-learning state  │            │ DOM curious prompt   │
 │ alarm HTTP server    │            │ mumble synthesizer   │
-│ Ollama client        │            │ drag-drop receiver   │
+│ llama.cpp client     │            │ drag-drop receiver   │
 └──────────┬───────────┘            └──────────┬───────────┘
            │ better-sqlite3 + WAL              │
    ┌───────▼──────────┐                ┌───────▼────────┐
@@ -145,7 +150,7 @@ Key constraints baked into the design:
 src/
 ├── main/
 │   ├── alarm/              HTTP server + reaction selector
-│   ├── llm/                Ollama wrappers, prompt pools, guardrails
+│   ├── llm/                llama-server wrappers, prompt pools, guardrails
 │   ├── memory/             SQLite open + repository
 │   ├── wordLearning/       matcher, repo, teaching state, keyword templates
 │   ├── softPing.ts         scheduler + word-curiosity gate
@@ -190,4 +195,4 @@ She does not say *therapy, therapist, treatment, cure, heal, fix, diagnose, diag
 
 MIT. See `LICENSE`.
 
-Built with [Ollama](https://ollama.com), [Electron](https://electronjs.org), [PixiJS](https://pixijs.com), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), and Gemma 4 by Google DeepMind.
+Built with [llama.cpp](https://github.com/ggml-org/llama.cpp), [Electron](https://electronjs.org), [PixiJS](https://pixijs.com), [better-sqlite3](https://github.com/WiseLibs/better-sqlite3), and Gemma 4 by Google DeepMind.
