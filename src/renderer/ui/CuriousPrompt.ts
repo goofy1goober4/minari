@@ -237,6 +237,12 @@ export class CuriousPrompt {
       child.addEventListener('pointerdown', (e) => e.stopPropagation());
     }
 
+    // ⏏ long-press menu (volume / quit) auto-closes once the user turns back
+    // to the conversation — typing, clicking the input, or clicking history.
+    this.input.addEventListener('input', () => this.closeMenu());
+    this.input.addEventListener('pointerdown', () => this.closeMenu());
+    this.historyPanel.addEventListener('pointerdown', () => this.closeMenu());
+
     // Scroll-driven fade for the history scrollbar: visible while scrolling,
     // fades away after a short idle window. Hover keeps it visible (CSS).
     const scrollEl = this.historyPanel.querySelector('.minari-curious-history-scroll') as HTMLDivElement;
@@ -443,6 +449,11 @@ export class CuriousPrompt {
   }
 
   // ── Menu / Volume / Quit ─────────────────────────────────────────────────
+  // Collapse the ⏏ long-press menu if it's open; no-op otherwise.
+  private closeMenu() {
+    if (this.menuExpanded) this.toggleMenu();
+  }
+
   private toggleMenu() {
     this.menuExpanded = !this.menuExpanded;
     this.menuEl.hidden = !this.menuExpanded;

@@ -7,6 +7,7 @@ import {
   PROD_SUPPRESSION_CONFIG,
   evaluateSuppression,
   type SuppressReason,
+  type SuppressionConfig,
 } from '../shared/softPingSuppression';
 import { getCurrentStage } from './growth';
 import { getOldestUnknown, markCurious } from './wordLearning/repo';
@@ -18,7 +19,15 @@ import { generateCuriosityQuestion } from './wordLearning/keywords';
 // Production values match the soft-ping spec.
 const IS_DEV = !app.isPackaged;
 
-const SUPPRESSION_CONFIG = IS_DEV ? DEV_SUPPRESSION_CONFIG : PROD_SUPPRESSION_CONFIG;
+// Demo aid — MINARI_PING_FAST=1 cuts the dev soft-ping min-spacing to 30s and
+// lifts the daily cap so pings fire freely while recording. tick / fire_prob
+// are untouched; both overrides revert when the env var is unset, and
+// production is unaffected.
+const SUPPRESSION_CONFIG: SuppressionConfig = !IS_DEV
+  ? PROD_SUPPRESSION_CONFIG
+  : process.env.MINARI_PING_FAST === '1'
+    ? { ...DEV_SUPPRESSION_CONFIG, minSpacingMs: 30 * 1000, dailyCap: 999 }
+    : DEV_SUPPRESSION_CONFIG;
 const TICK_MS = IS_DEV ? 30 * 1000 : 5 * 60 * 1000;
 const FIRE_PROB = IS_DEV ? 0.5 : 0.18;
 
