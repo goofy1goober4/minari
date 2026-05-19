@@ -13,8 +13,8 @@ Built for the **Kaggle Gemma 4 Good** competition (deadline 2026-05-18). Runs en
 - **Notices, doesn't ask.** Soft pings — one-line lowercase fragments — fire 2–5 times a day on her own clock, suppressed by recent interaction, quiet hours, and a daily cap. No notifications, no questions.
 - **Remembers you across days.** D+0 birth with a name you give her, snapshot resume across sessions, an automatic one-line diary written at quit time.
 - **Babbles, not speaks.** Animal-Crossing-style 15-sample mumble synthesizer drives the bubble text. No TTS.
-- **Receives gifts.** Drag any image onto her — Gemma vision describes it as a toddler would (`"warm cheese circles"`).
-- **Learns from you.** When she sees something she doesn't have a word for, she asks later: `"warm cheese circles... what?"` Once you teach her `pizza`, the next image of one comes back as `"pizza!"`
+- **Receives gifts.** Drag any image onto her — Gemma vision describes it as a toddler would (`"warm spotty circles"`).
+- **Learns from you.** When she sees something she doesn't have a word for, she asks later: `"warm spotty circles... what?"` Once you teach her `pizza`, the next image of one comes back as `"pizza!"`
 - **Reacts to alarms.** Wires into Claude Code's `Stop` hook so coding-agent runs end with one of four moods: startled, annoyed, deadpan, or just *"...loud."*
 
 She is not a tool, not a chatbot, not a wellbeing app. She's a small thing that lives on your desktop and occasionally looks up.
@@ -23,11 +23,14 @@ She is not a tool, not a chatbot, not a wellbeing app. She's a small thing that 
 
 ## Demo highlights
 
-Three things to watch in 60 seconds:
+Six things to watch:
 
-1. **Holding space, not advice.** "오늘 힘들었어." → `"...here."` Not "here's what you should do."
-2. **D+0 → D+10 drift.** Babble stage to curious stage. Mumble timbre, vocabulary, and proactive ping cadence all shift. She also starts asking what things are called.
-3. **3 GB model, on-device.** Toggle Wi-Fi off mid-demo. She keeps responding. The same story runs on E4B if you have the headroom.
+1. **Birth happens once.** First launch plays it live — a seed cracks, a sprout pushes up, a body forms, takes its first breath, and mumbles a question: your name. It never replays.
+2. **She learns a word.** Drop a pizza photo. Gemma's vision calls it `"warm spotty circles"` — she has no word for it yet. Later, unprompted: `"warm spotty circles... what?"` Teach her `pizza`, and the next one comes back `"pizza!"`
+3. **The diary writes itself.** She keeps a one-line diary on her own clock. Catch her mid-entry and tap — she startles, surprised face and a flustered double-blink, then lets you peek.
+4. **She mumbles, never speaks.** 15 phoneme-mapped syllable samples drive the bubble text, and questions lift on a rising pitch at the end. No TTS.
+5. **Alarms land on her.** When a coding-agent run finishes, she startles, glares, mutters — or just `"...loud."`
+6. **Fully offline.** Ask her about wifi and she's never heard the word: `"what is that?"` Nothing leaves the machine.
 
 ---
 
@@ -62,13 +65,13 @@ First launch plays a birth scene: a seed sprouts, you give her a nickname, she s
 ## Word learning (the "she learns from you" demo)
 
 ```
-D+3   you drop a pizza photo  →  "warm cheese circles."     ← doesn't know
-D+10  she asks unprompted      →  "warm cheese circles... what?"
+D+3   you drop a pizza photo  →  "warm spotty circles."     ← doesn't know
+D+10  she asks unprompted      →  "warm spotty circles... what?"
       you type                 →  "pizza"
       she echoes               →  "pizza?"
       you confirm              →  "yes"
       she savours              →  "pizza-"
-      diary that night         →  "jy gave warm cheese circles. warm cheese circles has name now: pizza."
+      diary that night         →  "jy gave warm spotty circles. warm spotty circles has name now: pizza."
 D+11  you drop another pizza   →  "pizza!"                    ← remembers
 ```
 
